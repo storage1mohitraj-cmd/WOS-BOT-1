@@ -1,0 +1,15 @@
+services:
+  - type: worker
+    name: whiteout-survival-bot
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.13
+    autoDeploy: false
+    # The following settings help with the pip build issues
+    buildConfig:
+      pythonEnvOptions:
+        setuptools: true

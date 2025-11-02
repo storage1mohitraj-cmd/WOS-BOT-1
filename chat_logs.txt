@@ -1,0 +1,834 @@
+2025-09-27 11:14:47,828 - Angel#7177 has connected to Discord!
+2025-09-27 11:14:48,419 - Synced commands globally
+2025-09-27 11:15:21,662 - Error in mostactive command: This interaction has already been responded to before
+2025-09-27 11:16:03,055 - Error in mostactive command: This interaction has already been responded to before
+2025-09-27 11:16:50,530 - Error in mostactive command: This interaction has already been responded to before
+2025-09-27 11:17:15,600 - Successfully edited animation message with mostactive results
+2025-09-27 11:17:26,659 - Successfully edited animation message with mostactive results
+2025-09-27 11:17:45,183 - Error in mostactive command: This interaction has already been responded to before
+2025-09-27 11:21:21,497 - Angel#7177 has connected to Discord!
+2025-09-27 11:21:22,047 - Synced commands globally
+2025-09-27 11:22:16,817 - Successfully edited animation message with mostactive results
+2025-09-27 11:27:44,864 - Error in imagine command: Image generation failed: All APIs exhausted or unavailable
+2025-09-27 11:28:01,858 - Successfully edited animation message with mostactive results
+2025-09-27 11:28:13,632 - Successfully edited animation message with serverstats results
+2025-09-27 11:46:11,913 - Henry#7177 has connected to Discord!
+2025-09-27 11:46:12,879 - Synced commands globally
+2025-09-27 11:46:12,879 - Error in on_ready: Task is already launched and is not completed.
+2025-09-27 17:19:50,603 - Henry#7177 has connected to Discord!
+2025-09-27 17:19:51,389 - Synced commands globally
+2025-09-27 17:19:51,389 - Error in on_ready: Task is already launched and is not completed.
+2025-09-27 18:28:39,369 - Henry#7177 has connected to Discord!
+2025-09-27 18:28:39,990 - Synced commands globally
+2025-09-27 18:34:05,736 - Successfully edited animation message with gift codes
+2025-09-27 18:42:17,578 - Successfully edited animation message with mostactive results
+2025-09-27 18:45:09,652 - Successfully edited animation message with mostactive results
+2025-09-27 20:30:55,885 - Henry#7177 has connected to Discord!
+2025-09-27 20:30:56,459 - Synced commands globally
+2025-09-27 20:32:25,856 - [GUILD: Mohit Raj (1147956569271697518)] [CHANNEL: notes-resources (1147956569271697521)] [AUTHOR: Anonymous (1394583502716145737)] Message: Hi
+2025-09-27 20:32:28,249 - [GUILD: Mohit Raj (1147956569271697518)] [CHANNEL: notes-resources (1147956569271697521)] [AUTHOR: Anonymous (1394583502716145737)] Message: Hi
+2025-09-27 20:32:30,180 - [GUILD: Mohit Raj (1147956569271697518)] [CHANNEL: notes-resources (1147956569271697521)] [AUTHOR: Anonymous (1394583502716145737)] Message: Hi
+2025-09-27 20:32:39,453 - [GUILD: Mohit Raj (1147956569271697518)] [CHANNEL: notes-resources (1147956569271697521)] [AUTHOR: Anonymous (1394583502716145737)] Message: Yxhav,
+2025-09-27 20:32:40,626 - [GUILD: Mohit Raj (1147956569271697518)] [CHANNEL: notes-resources (1147956569271697521)] [AUTHOR: Anonymous (1394583502716145737)] Message: Sxhvexhsxj
+2025-09-27 20:32:42,413 - [GUILD: Mohit Raj (1147956569271697518)] [CHANNEL: notes-resources (1147956569271697521)] [AUTHOR: Anonymous (1394583502716145737)] Message: Dwjvxjv
+2025-09-27 20:33:09,241 - Successfully edited animation message with mostactive results
+2025-09-27 20:33:52,387 - [GUILD: Mohit Raj (1147956569271697518)] [CHANNEL: notes-resources (1147956569271697521)] [AUTHOR: Anonymous (1394583502716145737)] Message: Jo
+2025-09-27 20:33:53,667 - [GUILD: Mohit Raj (1147956569271697518)] [CHANNEL: notes-resources (1147956569271697521)] [AUTHOR: Anonymous (1394583502716145737)] Message: Hi
+2025-09-27 20:33:54,691 - [GUILD: Mohit Raj (1147956569271697518)] [CHANNEL: notes-resources (1147956569271697521)] [AUTHOR: Anonymous (1394583502716145737)] Message: Ji
+2025-09-27 20:34:12,283 - Successfully edited animation message with mostactive results
+2025-09-27 20:34:16,656 - Error in imagine command: Image generation failed: All APIs exhausted or unavailable
+2025-09-27 20:34:25,155 - Error in mostactive command: 404 Not Found (error code: 10015): Unknown Webhook
+2025-09-27 20:40:11,248 - Successfully edited animation message with gift codes
+2025-09-27 20:40:20,214 - Successfully edited animation message with mostactive results
+2025-09-27 20:44:09,676 - Successfully edited animation message with mostactive results
+2025-09-27 20:57:42,615 - Henry#7177 has connected to Discord!
+2025-09-27 20:57:51,135 - Successfully edited animation message with mostactive results
+2025-09-27 20:57:58,650 - Error in mostactive command: 404 Not Found (error code: 10015): Unknown Webhook
+2025-09-27 20:58:43,172 - Synced commands globally
+2025-09-27 20:59:05,981 - Successfully edited animation message with mostactive results
+2025-09-27 21:02:30,399 - Henry#7177 has connected to Discord!
+2025-09-27 21:02:31,017 - Synced commands globally
+2025-09-27 21:02:54,661 - Successfully edited animation message with mostactive results
+2025-09-27 21:07:27,584 - Successfully edited animation message with mostactive results
+2025-09-27 21:07:56,616 - Successfully edited animation message with serverstats results
+2025-09-27 21:08:13,134 - Error in imagine command: Image generation failed: All APIs exhausted or unavailable
+2025-09-27 21:11:59,507 - Henry#7177 has connected to Discord!
+2025-09-27 21:12:02,655 - Synced commands globally
+2025-09-27 21:12:07,793 - Error in imagine command: Image generation failed: All APIs exhausted or unavailable
+2025-09-27 21:14:22,070 - Successfully edited animation message with serverstats results
+2025-09-27 21:14:42,528 - Successfully edited animation message with gift codes
+2025-09-27 21:19:43,403 - Henry#7177 has connected to Discord!
+2025-09-27 21:19:43,943 - Synced commands globally
+2025-09-27 21:20:35,602 - Successfully edited animation message with mostactive results
+2025-09-27 21:20:51,928 - Error in imagine command: Image generation failed: All APIs exhausted or unavailable
+2025-09-27 21:22:08,645 - Error in imagine command: Image generation failed: All APIs exhausted or unavailable
+2025-09-27 21:25:15,788 - Henry#7177 has connected to Discord!
+2025-09-27 21:25:17,290 - Synced commands globally
+2025-09-27 21:25:22,701 - Error in imagine command: Image generation failed: All APIs exhausted or unavailable
+2025-09-27 21:31:38,577 - Henry#7177 has connected to Discord!
+2025-09-27 21:33:09,200 - Synced commands globally
+2025-09-27 21:35:12,140 - Error in imagine command: 404 Not Found (error code: 10015): Unknown Webhook
+2025-09-27 21:35:12,571 - Failed to send error message: 404 Not Found (error code: 10015): Unknown Webhook
+2025-09-27 21:35:12,986 - Failed to send final error message: 404 Not Found (error code: 10015): Unknown Webhook
+2025-09-27 21:35:36,767 - Successfully sent image in new message after animation deletion
+2025-09-27 21:40:58,859 - Henry#7177 has connected to Discord!
+2025-09-27 21:41:03,551 - Synced commands globally
+2025-09-27 21:41:42,437 - Successfully edited animation message with gift codes
+2025-09-27 21:42:02,714 - Successfully edited animation message with serverstats results
+2025-09-27 21:42:06,767 - Successfully edited animation message with serverstats results
+2025-09-27 21:42:29,411 - Successfully edited animation message with mostactive results
+2025-09-27 21:42:35,779 - Successfully edited animation message with mostactive results
+2025-09-27 22:00:05,176 - Henry#7177 has connected to Discord!
+2025-09-27 22:01:41,829 - Synced commands globally
+2025-09-27 22:02:47,627 - Successfully edited animation message with gift codes
+2025-09-27 22:03:15,781 - Successfully edited animation message with gift codes
+2025-09-27 22:08:34,969 - Successfully edited animation message with gift codes
+2025-09-27 22:57:32,080 - Jeronimo#7177 has connected to Discord!
+2025-09-27 22:57:32,819 - Synced commands globally
+2025-09-27 22:57:32,819 - Error in on_ready: Task is already launched and is not completed.
+2025-09-27 23:31:49,494 - Jeronimo#7177 has connected to Discord!
+2025-09-27 23:31:50,407 - Synced commands globally
+2025-09-27 23:31:50,407 - Error in on_ready: Task is already launched and is not completed.
+2025-09-27 23:39:26,947 - Jeronimo#7177 has connected to Discord!
+2025-09-27 23:39:27,562 - Synced commands globally
+2025-09-27 23:51:34,880 - Jeronimo#7177 has connected to Discord!
+2025-09-27 23:51:35,619 - Synced commands globally
+2025-09-27 23:56:17,613 - Successfully edited animation message with gift codes
+2025-09-27 23:56:40,539 - Successfully edited animation message with mostactive results
+2025-09-28 00:15:05,773 - Successfully edited animation message with mostactive results
+2025-09-28 00:23:11,109 - Fetched 176 total messages from channel
+2025-09-28 00:23:11,109 - Top user: 11:11[CTT] with 41 messages
+2025-09-28 00:23:11,923 - Successfully edited animation message with serverstats results
+2025-09-28 00:41:48,470 - Successfully edited animation message with mostactive results
+2025-09-28 00:42:36,518 - Successfully edited animation message with mostactive results
+2025-09-28 11:20:21,843 - Jeronimo#7177 has connected to Discord!
+2025-09-28 11:20:22,531 - Synced commands globally
+2025-09-28 11:22:50,921 - Successfully edited animation message with gift codes
+2025-09-28 13:11:49,607 - Jeronimo#7177 has connected to Discord!
+2025-09-28 13:11:50,164 - Synced commands globally
+2025-09-28 13:32:25,837 - Jeronimo#7177 has connected to Discord!
+2025-09-28 13:32:26,521 - Synced commands globally
+2025-09-28 13:32:59,081 - Successfully sent image in new message after animation deletion
+2025-10-07 14:22:18,418 - Valac#7177 has connected to Discord!
+2025-10-07 14:22:19,056 - Synced commands globally
+2025-10-07 14:38:39,126 - Valac#7177 has connected to Discord!
+2025-10-07 14:38:39,967 - Synced commands globally
+2025-10-07 14:54:43,549 - Valac#7177 has connected to Discord!
+2025-10-07 14:54:44,212 - Synced commands globally
+2025-10-07 15:00:37,515 - Valac#7177 has connected to Discord!
+2025-10-07 15:00:38,464 - Synced commands globally
+2025-10-07 15:06:02,572 - Valac#7177 has connected to Discord!
+2025-10-07 15:06:03,179 - Synced commands globally
+2025-10-07 15:14:55,994 - Valac#7177 has connected to Discord!
+2025-10-07 15:14:56,592 - Synced commands globally
+2025-10-07 15:22:37,315 - Valac#7177 has connected to Discord!
+2025-10-07 15:22:39,620 - Synced commands globally
+2025-10-15 13:38:49,619 - Jeronimo#7177 has connected to Discord!
+2025-10-15 13:38:50,411 - Synced commands globally
+2025-10-15 13:39:21,101 - Successfully edited animation message with gift codes
+2025-10-15 13:56:56,157 - Jeronimo#7177 has connected to Discord!
+2025-10-15 13:56:56,938 - Synced commands globally
+2025-10-15 13:59:43,504 - Received signal 2; shutting down gracefully...
+2025-10-15 14:00:04,375 - Jeronimo#7177 has connected to Discord!
+2025-10-15 14:00:06,449 - Synced commands globally
+2025-10-15 14:43:31,455 - Jeronimo#7177 has connected to Discord!
+2025-10-15 14:43:32,133 - Synced commands globally
+2025-10-15 14:48:13,084 - Jeronimo#7177 has connected to Discord!
+2025-10-15 14:48:13,901 - Synced commands globally
+2025-10-15 14:57:35,881 - Jeronimo#7177 has connected to Discord!
+2025-10-15 14:57:36,708 - Synced commands globally
+2025-10-15 15:30:56,942 - Jeronimo#7177 has connected to Discord!
+2025-10-15 15:30:57,799 - Synced commands globally
+2025-10-15 15:30:57,799 - Error in on_ready: Task is already launched and is not completed.
+2025-10-15 15:53:11,455 - Jeronimo#7177 has connected to Discord!
+2025-10-15 15:53:12,220 - Synced commands globally
+2025-10-15 17:57:32,202 - Jeronimo#7177 has connected to Discord!
+2025-10-15 17:57:34,749 - Synced commands globally
+2025-10-15 17:57:34,751 - Error in on_ready: Task is already launched and is not completed.
+2025-10-17 14:43:35,321 - Jeronimo#7177 has connected to Discord!
+2025-10-17 14:43:36,131 - Synced commands globally
+2025-10-17 14:55:30,345 - Jeronimo#7177 has connected to Discord!
+2025-10-17 14:55:31,099 - Synced commands globally
+2025-10-17 15:11:49,638 - Jeronimo#7177 has connected to Discord!
+2025-10-17 15:11:50,362 - Synced commands globally
+2025-10-17 15:26:24,490 - Jeronimo#7177 has connected to Discord!
+2025-10-17 15:26:25,305 - Synced commands globally
+2025-10-17 15:39:06,268 - Jeronimo#7177 has connected to Discord!
+2025-10-17 15:39:07,011 - Synced commands globally
+2025-10-17 15:53:23,407 - Jeronimo#7177 has connected to Discord!
+2025-10-17 15:53:24,109 - Synced commands globally
+2025-10-17 16:15:04,676 - Jeronimo#7177 has connected to Discord!
+2025-10-17 16:15:05,413 - Synced commands globally
+2025-10-17 17:29:16,595 - Jeronimo#7177 has connected to Discord!
+2025-10-17 17:29:17,268 - Synced commands globally
+2025-10-17 17:38:29,472 - Jeronimo#7177 has connected to Discord!
+2025-10-17 17:38:30,172 - Synced commands globally
+2025-10-17 17:53:57,313 - Jeronimo#7177 has connected to Discord!
+2025-10-17 17:53:57,993 - Synced commands globally
+2025-10-17 18:01:52,628 - Jeronimo#7177 has connected to Discord!
+2025-10-17 18:01:53,414 - Synced commands globally
+2025-10-17 18:51:32,777 - Jeronimo#7177 has connected to Discord!
+2025-10-17 18:51:33,527 - Synced commands globally
+2025-10-17 18:55:35,082 - Jeronimo#7177 has connected to Discord!
+2025-10-17 18:55:35,733 - Synced commands globally
+2025-10-17 19:08:48,180 - Jeronimo#7177 has connected to Discord!
+2025-10-17 19:08:48,931 - Synced commands globally
+2025-10-17 19:16:58,198 - Jeronimo#7177 has connected to Discord!
+2025-10-17 19:16:58,973 - Synced commands globally
+2025-10-17 19:20:56,573 - Jeronimo#7177 has connected to Discord!
+2025-10-17 19:20:57,251 - Synced commands globally
+2025-10-17 19:25:08,230 - Jeronimo#7177 has connected to Discord!
+2025-10-17 19:25:08,967 - Synced commands globally
+2025-10-18 18:13:20,541 - Spark#3946 has connected to Discord!
+2025-10-18 18:13:21,217 - Synced commands globally
+2025-10-18 18:15:47,558 - Spark#3946 has connected to Discord!
+2025-10-18 18:15:48,184 - Synced commands globally
+2025-10-18 18:19:29,849 - Spark#3946 has connected to Discord!
+2025-10-18 18:19:30,734 - Synced commands globally
+2025-10-20 03:14:52,704 - Spark#3946 has connected to Discord!
+2025-10-20 03:14:53,502 - Synced commands globally
+2025-10-20 03:15:53,558 - Successfully sent image in new message after animation deletion
+2025-10-20 03:16:00,710 - Received signal 2; shutting down gracefully...
+2025-10-20 03:22:31,840 - Spark#3946 has connected to Discord!
+2025-10-20 03:22:31,965 - Error loading music cog: Extension 'music_cog' raised an error: ModuleNotFoundError: No module named 'wavelink'
+2025-10-20 03:22:32,632 - Synced commands globally
+2025-10-20 03:33:04,021 - Spark#3946 has connected to Discord!
+2025-10-20 03:33:04,090 - Error loading music cog: Extension 'music_cog' raised an error: ModuleNotFoundError: No module named 'wavelink.ext'
+2025-10-20 03:33:04,094 - Traceback (most recent call last):
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 962, in _load_from_module_spec
+    spec.loader.exec_module(lib)  # type: ignore
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1026, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "F:\Angel bot\music_cog.py", line 5, in <module>
+    from wavelink.ext import spotify
+ModuleNotFoundError: No module named 'wavelink.ext'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\Angel bot\app.py", line 93, in on_ready
+    await bot.load_extension('music_cog')
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 1040, in load_extension
+    await self._load_from_module_spec(spec, name)
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 965, in _load_from_module_spec
+    raise errors.ExtensionFailed(key, e) from e
+discord.ext.commands.errors.ExtensionFailed: Extension 'music_cog' raised an error: ModuleNotFoundError: No module named 'wavelink.ext'
+
+2025-10-20 03:33:04,714 - Synced commands globally
+2025-10-20 03:35:00,534 - Spark#3946 has connected to Discord!
+2025-10-20 03:35:00,894 - Error loading music cog: Extension 'music_cog' raised an error: AttributeError: module 'wavelink' has no attribute 'Track'
+2025-10-20 03:35:01,767 - Synced commands globally
+2025-10-20 03:37:09,612 - Spark#3946 has connected to Discord!
+2025-10-20 03:37:09,842 - Music cog loaded successfully
+2025-10-20 03:37:10,533 - Successfully synced global commands
+2025-10-20 03:38:10,532 - Synced commands globally
+2025-10-20 03:39:22,016 - Spark#3946 has connected to Discord!
+2025-10-20 03:39:22,345 - Music cog loaded successfully
+2025-10-20 03:39:23,016 - Successfully synced global commands
+2025-10-20 03:40:23,063 - Synced commands globally
+2025-10-20 03:41:04,081 - Spark#3946 has connected to Discord!
+2025-10-20 03:41:04,457 - Music cog loaded successfully
+2025-10-20 03:41:05,124 - Successfully synced global commands
+2025-10-20 03:42:05,227 - Synced commands globally
+2025-10-20 03:43:53,125 - Spark#3946 has connected to Discord!
+2025-10-20 03:43:53,658 - Music cog loaded successfully
+2025-10-20 03:43:54,419 - Successfully synced global commands
+2025-10-20 03:44:54,328 - Synced commands globally
+2025-10-20 03:47:15,977 - Spark#3946 has connected to Discord!
+2025-10-20 03:47:16,526 - Music cog loaded successfully
+2025-10-20 03:47:17,129 - Successfully synced global commands
+2025-10-20 03:48:17,227 - Synced commands globally
+2025-10-20 03:55:40,385 - Spark#3946 has connected to Discord!
+2025-10-20 03:55:40,640 - Music cog loaded successfully
+2025-10-20 03:55:41,311 - Successfully synced global commands
+2025-10-20 03:56:41,328 - Synced commands globally
+2025-10-20 04:02:20,303 - Spark#3946 has connected to Discord!
+2025-10-20 04:02:20,553 - Error loading music cog: Extension 'music_cog' raised an error: TypeError: unsupported type annotation <class 'wavelink.tracks.Playable'>
+2025-10-20 04:02:20,580 - Traceback (most recent call last):
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 962, in _load_from_module_spec
+    spec.loader.exec_module(lib)  # type: ignore
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1026, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "F:\Angel bot\music_cog.py", line 16, in <module>
+    class Music(commands.Cog):
+    ...<380 lines>...
+                logger.error(f"Error during cleanup: {e}")
+  File "F:\Angel bot\music_cog.py", line 164, in Music
+    @app_commands.command(name="play")
+     ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\app_commands\commands.py", line 2065, in decorator
+    return Command(
+        name=name if name is not MISSING else func.__name__,
+    ...<5 lines>...
+        extras=extras,
+    )
+  File "C:\Program Files\Python313\Lib\site-packages\discord\app_commands\commands.py", line 688, in __init__
+    self._params: Dict[str, CommandParameter] = _extract_parameters_from_callback(callback, callback.__globals__)
+                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\app_commands\commands.py", line 384, in _extract_parameters_from_callback
+    param = annotation_to_parameter(resolved, parameter)
+  File "C:\Program Files\Python313\Lib\site-packages\discord\app_commands\transformers.py", line 837, in annotation_to_parameter
+    (inner, default, validate_default) = get_supported_annotation(annotation)
+                                         ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\app_commands\transformers.py", line 796, in get_supported_annotation
+    raise TypeError(f'unsupported type annotation {annotation!r}')
+TypeError: unsupported type annotation <class 'wavelink.tracks.Playable'>
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\Angel bot\app.py", line 93, in on_ready
+    await bot.load_extension('music_cog')
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 1040, in load_extension
+    await self._load_from_module_spec(spec, name)
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 965, in _load_from_module_spec
+    raise errors.ExtensionFailed(key, e) from e
+discord.ext.commands.errors.ExtensionFailed: Extension 'music_cog' raised an error: TypeError: unsupported type annotation <class 'wavelink.tracks.Playable'>
+
+2025-10-20 04:02:21,250 - Synced commands globally
+2025-10-20 04:03:32,415 - Spark#3946 has connected to Discord!
+2025-10-20 04:03:32,649 - Error loading music cog: Extension 'music_cog' raised an error: TypeError: unsupported type annotation <class 'wavelink.tracks.Playable'>
+2025-10-20 04:03:32,659 - Traceback (most recent call last):
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 962, in _load_from_module_spec
+    spec.loader.exec_module(lib)  # type: ignore
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1026, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "F:\Angel bot\music_cog.py", line 16, in <module>
+    class Music(commands.Cog):
+    ...<380 lines>...
+                logger.error(f"Error during cleanup: {e}")
+  File "F:\Angel bot\music_cog.py", line 164, in Music
+    @app_commands.command(name="play")
+     ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\app_commands\commands.py", line 2065, in decorator
+    return Command(
+        name=name if name is not MISSING else func.__name__,
+    ...<5 lines>...
+        extras=extras,
+    )
+  File "C:\Program Files\Python313\Lib\site-packages\discord\app_commands\commands.py", line 688, in __init__
+    self._params: Dict[str, CommandParameter] = _extract_parameters_from_callback(callback, callback.__globals__)
+                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\app_commands\commands.py", line 384, in _extract_parameters_from_callback
+    param = annotation_to_parameter(resolved, parameter)
+  File "C:\Program Files\Python313\Lib\site-packages\discord\app_commands\transformers.py", line 837, in annotation_to_parameter
+    (inner, default, validate_default) = get_supported_annotation(annotation)
+                                         ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\app_commands\transformers.py", line 796, in get_supported_annotation
+    raise TypeError(f'unsupported type annotation {annotation!r}')
+TypeError: unsupported type annotation <class 'wavelink.tracks.Playable'>
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\Angel bot\app.py", line 93, in on_ready
+    await bot.load_extension('music_cog')
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 1040, in load_extension
+    await self._load_from_module_spec(spec, name)
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 965, in _load_from_module_spec
+    raise errors.ExtensionFailed(key, e) from e
+discord.ext.commands.errors.ExtensionFailed: Extension 'music_cog' raised an error: TypeError: unsupported type annotation <class 'wavelink.tracks.Playable'>
+
+2025-10-20 04:03:34,712 - Synced commands globally
+2025-10-20 04:06:53,871 - Spark#3946 has connected to Discord!
+2025-10-20 04:06:54,415 - Music cog loaded successfully
+2025-10-20 04:06:55,203 - Successfully synced global commands
+2025-10-20 04:07:55,124 - Synced commands globally
+2025-10-20 04:19:10,325 - Spark#3946 has connected to Discord!
+2025-10-20 04:19:10,668 - Music cog loaded successfully
+2025-10-20 04:19:11,305 - Successfully synced global commands
+2025-10-20 04:20:11,333 - Synced commands globally
+2025-10-20 04:20:44,753 - Spark#3946 has connected to Discord!
+2025-10-20 04:20:44,972 - Music cog loaded successfully
+2025-10-20 04:20:45,589 - Successfully synced global commands
+2025-10-20 04:21:45,617 - Synced commands globally
+2025-10-20 04:22:29,941 - Spark#3946 has connected to Discord!
+2025-10-20 04:22:30,210 - Music cog loaded successfully
+2025-10-20 04:22:31,558 - Successfully synced global commands
+2025-10-20 04:23:30,940 - Synced commands globally
+2025-10-20 04:25:47,005 - Spark#3946 has connected to Discord!
+2025-10-20 04:25:47,267 - Music cog loaded successfully
+2025-10-20 04:25:48,240 - Successfully synced global commands
+2025-10-20 04:26:48,000 - Synced commands globally
+2025-10-20 04:31:02,545 - Spark#3946 has connected to Discord!
+2025-10-20 04:31:02,809 - Music cog loaded successfully
+2025-10-20 04:31:03,539 - Successfully synced global commands
+2025-10-20 04:32:03,519 - Synced commands globally
+2025-10-20 04:42:29,973 - Spark#3946 has connected to Discord!
+2025-10-20 04:42:30,285 - Error loading music cog: Extension 'music_cog' raised an error: AttributeError: module 'wavelink' has no attribute 'WavelinkMixin'
+2025-10-20 04:42:30,294 - Traceback (most recent call last):
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 962, in _load_from_module_spec
+    spec.loader.exec_module(lib)  # type: ignore
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1026, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "F:\Angel bot\music_cog.py", line 15, in <module>
+    class Music(commands.Cog):
+    ...<370 lines>...
+                logger.error(f"Error in track end event: {e}")
+  File "F:\Angel bot\music_cog.py", line 374, in Music
+    @wavelink.WavelinkMixin.listener()
+     ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'wavelink' has no attribute 'WavelinkMixin'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\Angel bot\app.py", line 93, in on_ready
+    await bot.load_extension('music_cog')
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 1040, in load_extension
+    await self._load_from_module_spec(spec, name)
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 965, in _load_from_module_spec
+    raise errors.ExtensionFailed(key, e) from e
+discord.ext.commands.errors.ExtensionFailed: Extension 'music_cog' raised an error: AttributeError: module 'wavelink' has no attribute 'WavelinkMixin'
+
+2025-10-20 04:42:31,978 - Synced commands globally
+2025-10-20 04:44:52,732 - Spark#3946 has connected to Discord!
+2025-10-20 04:44:52,995 - Music cog loaded successfully
+2025-10-20 04:44:53,758 - Successfully synced global commands
+2025-10-20 04:45:53,749 - Synced commands globally
+2025-10-28 21:41:27,300 - Halloween#3946 has connected to Discord!
+2025-10-28 21:41:27,571 - Music cog loaded successfully
+2025-10-28 21:41:29,167 - Successfully synced global commands
+2025-10-28 21:42:29,070 - Synced commands globally
+2025-10-28 22:42:58,017 - Halloween#3946 has connected to Discord!
+2025-10-28 22:42:58,136 - Music cog loaded successfully
+2025-10-28 22:42:58,742 - Successfully synced global commands
+2025-10-28 22:43:58,910 - Synced commands globally
+2025-10-29 09:33:21,093 - Halloween#3946 has connected to Discord!
+2025-10-29 09:33:21,367 - Music cog loaded successfully
+2025-10-29 09:33:22,102 - Successfully synced global commands
+2025-10-29 09:34:22,096 - Synced commands globally
+2025-10-29 09:41:53,048 - Halloween#3946 has connected to Discord!
+2025-10-29 09:41:53,356 - Music cog loaded successfully
+2025-10-29 09:41:54,295 - Successfully synced global commands
+2025-10-29 09:42:54,075 - Synced commands globally
+2025-10-29 09:46:00,788 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 10:06:44,270 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 10:20:30,436 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 10:33:17,783 - Halloween#3946 has connected to Discord!
+2025-10-29 10:33:17,985 - Music cog loaded successfully
+2025-10-29 10:33:18,587 - Successfully synced global commands
+2025-10-29 10:34:04,829 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 10:34:18,645 - Synced commands globally
+2025-10-29 10:49:03,315 - Halloween#3946 has connected to Discord!
+2025-10-29 10:49:03,456 - Music cog loaded successfully
+2025-10-29 10:49:04,079 - Successfully synced global commands
+2025-10-29 10:50:04,176 - Synced commands globally
+2025-10-29 10:58:25,740 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 11:11:56,702 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 11:25:45,135 - Halloween#3946 has connected to Discord!
+2025-10-29 11:25:45,314 - Music cog loaded successfully
+2025-10-29 11:25:46,039 - Successfully synced global commands
+2025-10-29 11:26:45,930 - Synced commands globally
+2025-10-29 12:54:54,486 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 13:00:53,225 - Halloween#3946 has connected to Discord!
+2025-10-29 13:00:53,556 - Music cog loaded successfully
+2025-10-29 13:00:54,183 - Successfully synced global commands
+2025-10-29 13:00:58,980 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 13:01:54,236 - Synced commands globally
+2025-10-29 13:09:12,793 - Halloween#3946 has connected to Discord!
+2025-10-29 13:09:12,948 - Music cog loaded successfully
+2025-10-29 13:09:13,597 - Successfully synced global commands
+2025-10-29 13:10:13,698 - Synced commands globally
+2025-10-29 13:11:02,842 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 13:17:07,633 - Halloween#3946 has connected to Discord!
+2025-10-29 13:17:07,898 - Music cog loaded successfully
+2025-10-29 13:17:08,739 - Successfully synced global commands
+2025-10-29 13:18:08,673 - Synced commands globally
+2025-10-29 13:22:27,866 - Halloween#3946 has connected to Discord!
+2025-10-29 13:22:28,147 - Music cog loaded successfully
+2025-10-29 13:22:28,823 - Successfully synced global commands
+2025-10-29 13:23:28,956 - Synced commands globally
+2025-10-29 13:52:14,365 - Halloween#3946 has connected to Discord!
+2025-10-29 13:52:14,666 - Music cog loaded successfully
+2025-10-29 13:52:15,252 - Successfully synced global commands
+2025-10-29 13:53:15,314 - Synced commands globally
+2025-10-29 13:58:59,562 - Halloween#3946 has connected to Discord!
+2025-10-29 13:58:59,733 - Music cog loaded successfully
+2025-10-29 13:59:00,387 - Successfully synced global commands
+2025-10-29 14:00:00,377 - Synced commands globally
+2025-10-29 14:13:48,753 - Halloween#3946 has connected to Discord!
+2025-10-29 14:13:48,904 - Music cog loaded successfully
+2025-10-29 14:13:49,733 - Successfully synced global commands
+2025-10-29 14:14:49,533 - Synced commands globally
+2025-10-29 14:42:59,478 - Halloween#3946 has connected to Discord!
+2025-10-29 14:42:59,479 - Error loading music cog: Extension 'music_cog' is already loaded.
+2025-10-29 14:42:59,481 - Traceback (most recent call last):
+  File "F:\Angel bot\app.py", line 93, in on_ready
+    await bot.load_extension('music_cog')
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 1034, in load_extension
+    raise errors.ExtensionAlreadyLoaded(name)
+discord.ext.commands.errors.ExtensionAlreadyLoaded: Extension 'music_cog' is already loaded.
+
+2025-10-29 14:43:00,365 - Synced commands globally
+2025-10-29 14:43:00,365 - Error in on_ready: Task is already launched and is not completed.
+2025-10-29 14:51:45,469 - Halloween#3946 has connected to Discord!
+2025-10-29 14:51:45,625 - Music cog loaded successfully
+2025-10-29 14:51:46,323 - Successfully synced global commands
+2025-10-29 14:52:46,232 - Synced commands globally
+2025-10-29 15:02:22,791 - Halloween#3946 has connected to Discord!
+2025-10-29 15:02:22,979 - Music cog loaded successfully
+2025-10-29 15:02:23,653 - Successfully synced global commands
+2025-10-29 15:03:23,627 - Synced commands globally
+2025-10-29 15:07:59,489 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 15:08:03,341 - Successfully edited animation message with gift codes
+2025-10-29 15:14:59,226 - Halloween#3946 has connected to Discord!
+2025-10-29 15:14:59,380 - Music cog loaded successfully
+2025-10-29 15:15:00,520 - Successfully synced global commands
+2025-10-29 15:16:00,154 - Synced commands globally
+2025-10-29 15:24:50,224 - Halloween#3946 has connected to Discord!
+2025-10-29 15:24:50,380 - Music cog loaded successfully
+2025-10-29 15:24:50,973 - Successfully synced global commands
+2025-10-29 15:25:50,975 - Synced commands globally
+2025-10-29 15:31:47,797 - Halloween#3946 has connected to Discord!
+2025-10-29 15:31:47,914 - Music cog loaded successfully
+2025-10-29 15:31:48,677 - Successfully synced global commands
+2025-10-29 15:32:48,586 - Synced commands globally
+2025-10-29 15:34:33,224 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 15:34:35,455 - Successfully edited animation message with gift codes
+2025-10-29 17:36:12,147 - Halloween#3946 has connected to Discord!
+2025-10-29 17:36:12,147 - Error loading music cog: Extension 'music_cog' is already loaded.
+2025-10-29 17:36:12,150 - Traceback (most recent call last):
+  File "F:\Angel bot\app.py", line 94, in on_ready
+    await bot.load_extension('music_cog')
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 1034, in load_extension
+    raise errors.ExtensionAlreadyLoaded(name)
+discord.ext.commands.errors.ExtensionAlreadyLoaded: Extension 'music_cog' is already loaded.
+
+2025-10-29 17:36:13,663 - Synced commands globally
+2025-10-29 17:36:13,663 - Error in on_ready: Task is already launched and is not completed.
+2025-10-29 17:36:42,794 - Successfully sent image in new message after animation deletion
+2025-10-29 18:42:01,220 - Halloween#3946 has connected to Discord!
+2025-10-29 18:42:01,376 - Music cog loaded successfully
+2025-10-29 18:42:01,986 - Successfully synced global commands
+2025-10-29 18:42:20,867 - Error in ask command: make_request() got an unexpected keyword argument 'include_alliance_data'
+2025-10-29 18:42:36,282 - Error in ask command: make_request() got an unexpected keyword argument 'include_alliance_data'
+2025-10-29 18:42:52,350 - Error in ask command: make_request() got an unexpected keyword argument 'include_alliance_data'
+2025-10-29 18:43:02,245 - Synced commands globally
+2025-10-29 18:43:11,870 - Error in ask command: make_request() got an unexpected keyword argument 'include_alliance_data'
+2025-10-29 18:44:34,818 - Halloween#3946 has connected to Discord!
+2025-10-29 18:44:34,945 - Music cog loaded successfully
+2025-10-29 18:44:35,726 - Successfully synced global commands
+2025-10-29 18:45:35,720 - Synced commands globally
+2025-10-29 18:47:25,557 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 18:47:27,361 - Successfully edited animation message with gift codes
+2025-10-29 18:51:29,623 - Halloween#3946 has connected to Discord!
+2025-10-29 18:51:29,834 - Music cog loaded successfully
+2025-10-29 18:51:30,428 - Successfully synced global commands
+2025-10-29 18:52:30,483 - Synced commands globally
+2025-10-29 20:18:02,215 - Halloween#3946 has connected to Discord!
+2025-10-29 20:18:02,215 - Error loading music cog: Extension 'music_cog' is already loaded.
+2025-10-29 20:18:02,217 - Traceback (most recent call last):
+  File "F:\Angel bot\app.py", line 94, in on_ready
+    await bot.load_extension('music_cog')
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 1034, in load_extension
+    raise errors.ExtensionAlreadyLoaded(name)
+discord.ext.commands.errors.ExtensionAlreadyLoaded: Extension 'music_cog' is already loaded.
+
+2025-10-29 20:18:04,138 - Synced commands globally
+2025-10-29 20:18:04,138 - Error in on_ready: Task is already launched and is not completed.
+2025-10-29 20:29:30,026 - Halloween#3946 has connected to Discord!
+2025-10-29 20:29:30,142 - Music cog loaded successfully
+2025-10-29 20:29:30,870 - Successfully synced global commands
+2025-10-29 20:30:30,840 - Synced commands globally
+2025-10-29 20:32:58,961 - Halloween#3946 has connected to Discord!
+2025-10-29 20:32:59,110 - Music cog loaded successfully
+2025-10-29 20:33:01,400 - Successfully synced global commands
+2025-10-29 20:33:59,747 - Synced commands globally
+2025-10-29 20:37:16,763 - Halloween#3946 has connected to Discord!
+2025-10-29 20:37:16,881 - Music cog loaded successfully
+2025-10-29 20:37:17,551 - Successfully synced global commands
+2025-10-29 20:38:17,523 - Synced commands globally
+2025-10-29 20:40:29,016 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 20:43:36,690 - Halloween#3946 has connected to Discord!
+2025-10-29 20:43:36,828 - Music cog loaded successfully
+2025-10-29 20:43:37,595 - Successfully synced global commands
+2025-10-29 20:44:37,606 - Synced commands globally
+2025-10-29 20:47:28,424 - Halloween#3946 has connected to Discord!
+2025-10-29 20:47:28,609 - Music cog loaded successfully
+2025-10-29 20:47:29,347 - Successfully synced global commands
+2025-10-29 20:48:29,281 - Synced commands globally
+2025-10-29 21:05:18,588 - Halloween#3946 has connected to Discord!
+2025-10-29 21:05:18,806 - Music cog loaded successfully
+2025-10-29 21:05:19,554 - Successfully synced global commands
+2025-10-29 21:06:19,713 - Synced commands globally
+2025-10-29 21:17:17,900 - Halloween#3946 has connected to Discord!
+2025-10-29 21:17:18,018 - Music cog loaded successfully
+2025-10-29 21:17:18,730 - Successfully synced global commands
+2025-10-29 21:18:18,723 - Synced commands globally
+2025-10-29 21:21:20,225 - Halloween#3946 has connected to Discord!
+2025-10-29 21:21:20,461 - Music cog loaded successfully
+2025-10-29 21:21:21,136 - Successfully synced global commands
+2025-10-29 21:22:21,077 - Synced commands globally
+2025-10-29 21:26:17,315 - Halloween#3946 has connected to Discord!
+2025-10-29 21:26:17,438 - Music cog loaded successfully
+2025-10-29 21:26:18,781 - Successfully synced global commands
+2025-10-29 21:27:18,453 - Synced commands globally
+2025-10-29 21:31:02,757 - Halloween#3946 has connected to Discord!
+2025-10-29 21:31:02,874 - Music cog loaded successfully
+2025-10-29 21:31:03,765 - Successfully synced global commands
+2025-10-29 21:31:48,509 - Halloween#3946 has connected to Discord!
+2025-10-29 21:31:48,632 - Music cog loaded successfully
+2025-10-29 21:32:33,657 - Successfully synced global commands
+2025-10-29 21:32:34,452 - Synced commands globally
+2025-10-29 21:35:27,741 - Halloween#3946 has connected to Discord!
+2025-10-29 21:35:27,934 - Music cog loaded successfully
+2025-10-29 21:35:29,924 - Successfully synced global commands
+2025-10-29 21:36:28,656 - Synced commands globally
+2025-10-29 21:39:14,786 - Halloween#3946 has connected to Discord!
+2025-10-29 21:39:14,985 - Music cog loaded successfully
+2025-10-29 21:39:15,669 - Successfully synced global commands
+2025-10-29 21:40:15,650 - Synced commands globally
+2025-10-29 21:42:21,120 - Halloween#3946 has connected to Discord!
+2025-10-29 21:42:21,302 - Music cog loaded successfully
+2025-10-29 21:42:21,923 - Successfully synced global commands
+2025-10-29 21:43:22,019 - Synced commands globally
+2025-10-29 21:48:52,549 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 21:48:55,196 - Successfully edited animation message with gift codes
+2025-10-29 21:52:21,566 - Halloween#3946 has connected to Discord!
+2025-10-29 21:52:21,781 - Music cog loaded successfully
+2025-10-29 21:52:22,449 - Successfully synced global commands
+2025-10-29 21:53:22,451 - Synced commands globally
+2025-10-29 21:57:43,027 - Error in giftcode command: catching classes that do not inherit from BaseException is not allowed
+2025-10-29 21:58:07,166 - Alliance data cache cleared by magnus_025096 (850786361572720661)
+2025-10-29 22:00:52,905 - Halloween#3946 has connected to Discord!
+2025-10-29 22:00:53,024 - Music cog loaded successfully
+2025-10-29 22:00:53,797 - Successfully synced global commands
+2025-10-29 22:01:53,666 - Synced commands globally
+2025-10-29 22:20:54,305 - Successfully edited animation message with event information
+2025-10-29 22:38:24,468 - Halloween#3946 has connected to Discord!
+2025-10-29 22:38:24,680 - Music cog loaded successfully
+2025-10-29 22:38:25,572 - Successfully synced global commands
+2025-10-29 22:39:25,502 - Synced commands globally
+2025-10-29 22:41:13,678 - Halloween#3946 has connected to Discord!
+2025-10-29 22:41:13,795 - Music cog loaded successfully
+2025-10-29 22:41:54,528 - Successfully synced global commands
+2025-10-29 22:41:55,236 - Synced commands globally
+2025-11-02 00:45:22,067 - Halloween#3946 has connected to Discord!
+2025-11-02 00:45:22,216 - Music cog loaded successfully
+2025-11-02 00:45:22,917 - Successfully synced global commands
+2025-11-02 00:46:22,950 - Synced commands globally
+2025-11-02 00:48:37,399 - Successfully sent image in new message after animation deletion
+2025-11-02 00:50:08,012 - Successfully edited animation message with event information
+2025-11-02 00:50:22,806 - Successfully edited animation message with serverstats results
+2025-11-02 00:55:13,843 - Halloween#3946 has connected to Discord!
+2025-11-02 00:55:14,083 - Music cog loaded successfully
+2025-11-02 00:55:14,822 - Successfully synced global commands
+2025-11-02 00:55:55,169 - Successfully sent image in new message after animation deletion
+2025-11-02 00:56:14,707 - Synced commands globally
+2025-11-02 02:42:00,873 - Bot exited with: LoginFailure: Improper token has been passed.
+Traceback (most recent call last):
+  File "C:\Program Files\Python313\Lib\site-packages\discord\http.py", line 839, in static_login
+    data = await self.request(Route('GET', '/users/@me'))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\http.py", line 773, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 401 Unauthorized (error code: 0): 401: Unauthorized
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\app.py", line 1005, in <module>
+    bot.run(TOKEN)
+    ~~~~~~~^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 929, in run
+    asyncio.run(runner())
+    ~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Program Files\Python313\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Program Files\Python313\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 918, in runner
+    await self.start(token, reconnect=reconnect)
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 846, in start
+    await self.login(token)
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 675, in login
+    data = await self.http.static_login(token)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\http.py", line 843, in static_login
+    raise LoginFailure('Improper token has been passed.') from exc
+discord.errors.LoginFailure: Improper token has been passed.
+2025-11-02 02:42:00,932 - Bot exited — sleeping for inspection (1/30)
+2025-11-02 02:42:01,932 - Bot exited — sleeping for inspection (2/30)
+2025-11-02 02:42:02,933 - Bot exited — sleeping for inspection (3/30)
+2025-11-02 02:42:03,934 - Bot exited — sleeping for inspection (4/30)
+2025-11-02 02:42:04,935 - Bot exited — sleeping for inspection (5/30)
+2025-11-02 02:42:05,936 - Bot exited — sleeping for inspection (6/30)
+2025-11-02 02:42:06,937 - Bot exited — sleeping for inspection (7/30)
+2025-11-02 02:42:07,938 - Bot exited — sleeping for inspection (8/30)
+2025-11-02 02:42:08,939 - Bot exited — sleeping for inspection (9/30)
+2025-11-02 02:42:09,939 - Bot exited — sleeping for inspection (10/30)
+2025-11-02 02:42:10,940 - Bot exited — sleeping for inspection (11/30)
+2025-11-02 02:42:11,941 - Bot exited — sleeping for inspection (12/30)
+2025-11-02 02:42:12,942 - Bot exited — sleeping for inspection (13/30)
+2025-11-02 02:42:13,943 - Bot exited — sleeping for inspection (14/30)
+2025-11-02 02:42:14,943 - Bot exited — sleeping for inspection (15/30)
+2025-11-02 02:42:15,944 - Bot exited — sleeping for inspection (16/30)
+2025-11-02 02:42:16,945 - Bot exited — sleeping for inspection (17/30)
+2025-11-02 02:42:17,945 - Bot exited — sleeping for inspection (18/30)
+2025-11-02 02:42:18,946 - Bot exited — sleeping for inspection (19/30)
+2025-11-02 02:42:19,947 - Bot exited — sleeping for inspection (20/30)
+2025-11-02 02:42:20,948 - Bot exited — sleeping for inspection (21/30)
+2025-11-02 02:42:21,948 - Bot exited — sleeping for inspection (22/30)
+2025-11-02 02:42:22,949 - Bot exited — sleeping for inspection (23/30)
+2025-11-02 02:42:23,950 - Bot exited — sleeping for inspection (24/30)
+2025-11-02 02:42:24,951 - Bot exited — sleeping for inspection (25/30)
+2025-11-02 02:42:25,952 - Bot exited — sleeping for inspection (26/30)
+2025-11-02 02:42:26,953 - Bot exited — sleeping for inspection (27/30)
+2025-11-02 02:42:27,954 - Bot exited — sleeping for inspection (28/30)
+2025-11-02 02:42:28,955 - Bot exited — sleeping for inspection (29/30)
+2025-11-02 02:42:29,956 - Bot exited — sleeping for inspection (30/30)
+2025-11-02 02:42:30,957 - Uncaught exception
+Traceback (most recent call last):
+  File "C:\Program Files\Python313\Lib\site-packages\discord\http.py", line 839, in static_login
+    data = await self.request(Route('GET', '/users/@me'))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\http.py", line 773, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 401 Unauthorized (error code: 0): 401: Unauthorized
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\app.py", line 1005, in <module>
+    bot.run(TOKEN)
+    ~~~~~~~^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 929, in run
+    asyncio.run(runner())
+    ~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Program Files\Python313\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Program Files\Python313\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 918, in runner
+    await self.start(token, reconnect=reconnect)
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 846, in start
+    await self.login(token)
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 675, in login
+    data = await self.http.static_login(token)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\http.py", line 843, in static_login
+    raise LoginFailure('Improper token has been passed.') from exc
+discord.errors.LoginFailure: Improper token has been passed.
+2025-11-02 02:46:33,064 - Bot exited with: LoginFailure: Improper token has been passed.
+Traceback (most recent call last):
+  File "C:\Program Files\Python313\Lib\site-packages\discord\http.py", line 839, in static_login
+    data = await self.request(Route('GET', '/users/@me'))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\http.py", line 773, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 401 Unauthorized (error code: 0): 401: Unauthorized
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\app.py", line 1005, in <module>
+    bot.run(TOKEN)
+    ~~~~~~~^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 929, in run
+    asyncio.run(runner())
+    ~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Program Files\Python313\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Program Files\Python313\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 918, in runner
+    await self.start(token, reconnect=reconnect)
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 846, in start
+    await self.login(token)
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 675, in login
+    data = await self.http.static_login(token)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\http.py", line 843, in static_login
+    raise LoginFailure('Improper token has been passed.') from exc
+discord.errors.LoginFailure: Improper token has been passed.
+2025-11-02 02:46:33,070 - Bot exited — sleeping for inspection (1/30)
+2025-11-02 02:46:34,071 - Bot exited — sleeping for inspection (2/30)
+2025-11-02 02:46:35,072 - Bot exited — sleeping for inspection (3/30)
+2025-11-02 02:46:36,073 - Bot exited — sleeping for inspection (4/30)
+2025-11-02 02:46:37,074 - Bot exited — sleeping for inspection (5/30)
+2025-11-02 02:46:38,075 - Bot exited — sleeping for inspection (6/30)
+2025-11-02 02:46:39,076 - Bot exited — sleeping for inspection (7/30)
+2025-11-02 02:46:40,077 - Bot exited — sleeping for inspection (8/30)
+2025-11-02 02:46:41,078 - Bot exited — sleeping for inspection (9/30)
+2025-11-02 02:46:42,079 - Bot exited — sleeping for inspection (10/30)
+2025-11-02 02:46:43,080 - Bot exited — sleeping for inspection (11/30)
+2025-11-02 02:46:44,081 - Bot exited — sleeping for inspection (12/30)
+2025-11-02 02:46:45,083 - Bot exited — sleeping for inspection (13/30)
+2025-11-02 02:46:46,083 - Bot exited — sleeping for inspection (14/30)
+2025-11-02 02:46:47,084 - Bot exited — sleeping for inspection (15/30)
+2025-11-02 02:46:48,085 - Bot exited — sleeping for inspection (16/30)
+2025-11-02 02:46:49,086 - Bot exited — sleeping for inspection (17/30)
+2025-11-02 02:46:50,087 - Bot exited — sleeping for inspection (18/30)
+2025-11-02 02:46:51,088 - Bot exited — sleeping for inspection (19/30)
+2025-11-02 02:46:52,089 - Bot exited — sleeping for inspection (20/30)
+2025-11-02 02:46:53,090 - Bot exited — sleeping for inspection (21/30)
+2025-11-02 02:46:54,090 - Bot exited — sleeping for inspection (22/30)
+2025-11-02 02:46:55,091 - Bot exited — sleeping for inspection (23/30)
+2025-11-02 02:46:56,093 - Bot exited — sleeping for inspection (24/30)
+2025-11-02 02:46:57,094 - Bot exited — sleeping for inspection (25/30)
+2025-11-02 02:46:58,095 - Bot exited — sleeping for inspection (26/30)
+2025-11-02 02:46:59,095 - Bot exited — sleeping for inspection (27/30)
+2025-11-02 02:47:00,096 - Bot exited — sleeping for inspection (28/30)
+2025-11-02 02:47:01,096 - Bot exited — sleeping for inspection (29/30)
+2025-11-02 02:47:02,098 - Bot exited — sleeping for inspection (30/30)
+2025-11-02 02:47:03,099 - Uncaught exception
+Traceback (most recent call last):
+  File "C:\Program Files\Python313\Lib\site-packages\discord\http.py", line 839, in static_login
+    data = await self.request(Route('GET', '/users/@me'))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\http.py", line 773, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 401 Unauthorized (error code: 0): 401: Unauthorized
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\app.py", line 1005, in <module>
+    bot.run(TOKEN)
+    ~~~~~~~^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 929, in run
+    asyncio.run(runner())
+    ~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Program Files\Python313\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Program Files\Python313\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 918, in runner
+    await self.start(token, reconnect=reconnect)
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 846, in start
+    await self.login(token)
+  File "C:\Program Files\Python313\Lib\site-packages\discord\client.py", line 675, in login
+    data = await self.http.static_login(token)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\site-packages\discord\http.py", line 843, in static_login
+    raise LoginFailure('Improper token has been passed.') from exc
+discord.errors.LoginFailure: Improper token has been passed.
+2025-11-02 02:48:52,654 - Halloween#3946 has connected to Discord!
+2025-11-02 02:48:52,788 - Music cog loaded successfully
+2025-11-02 02:48:53,565 - Successfully synced global commands
+2025-11-02 02:49:53,535 - Synced commands globally
