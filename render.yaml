@@ -15,6 +15,8 @@ services:
         value: "3.10.13"
       - key: PIP_DISABLE_PIP_VERSION_CHECK
         value: "1"
+      - key: PIP_NO_BUILD_ISOLATION
+        value: "1"
       - key: PYTHONPATH
         value: "/opt/render/project/src"
       - key: PYTHONUNBUFFERED
