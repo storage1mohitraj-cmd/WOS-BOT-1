@@ -10,7 +10,7 @@ from api_manager import make_request, manager, make_image_request
 from angel_personality import get_system_prompt, angel_personality
 from user_mapping import get_known_user_name
 from gift_codes import get_active_gift_codes
-from reminder_system import ReminderSystem
+from reminder_system import ReminderSystem, set_user_timezone, get_user_timezone, TimeParser
 from event_tips import EVENT_TIPS, get_event_info
 from thinking_animation import ThinkingAnimation
 import sys
@@ -769,6 +769,44 @@ async def reminder(interaction: discord.Interaction, time: str, message: str, ch
             logger.error("Failed to send error message")
 
 
+@bot.tree.command(name="set_timezone", description="Set your preferred timezone abbreviation (e.g., IST, UTC, CET).")
+async def set_timezone_cmd(interaction: discord.Interaction, tz_abbr: str):
+    await interaction.response.defer(ephemeral=True)
+    try:
+        if not tz_abbr:
+            await interaction.followup.send("Please provide a timezone abbreviation (e.g., IST, UTC, CET).", ephemeral=True)
+            return
+
+        if tz_abbr.lower() not in TimeParser.TIMEZONE_MAP:
+            available = ', '.join(sorted(TimeParser.TIMEZONE_MAP.keys()))
+            await interaction.followup.send(f"Unknown timezone abbreviation. Supported: {available}", ephemeral=True)
+            return
+
+        success = set_user_timezone(interaction.user.id, tz_abbr.lower())
+        if success:
+            await interaction.followup.send(f"✅ Your timezone has been set to {tz_abbr.upper()}", ephemeral=True)
+        else:
+            await interaction.followup.send("Failed to save your timezone. Try again later.", ephemeral=True)
+
+    except Exception as e:
+        logger.error(f"Failed to set user timezone: {e}")
+        await interaction.followup.send("Error while setting timezone.", ephemeral=True)
+
+
+@bot.tree.command(name="show_timezone", description="Show your currently configured timezone (if any).")
+async def show_timezone_cmd(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    try:
+        tz = get_user_timezone(interaction.user.id)
+        if not tz:
+            await interaction.followup.send("You don't have a timezone set. Use /set_timezone <abbr> to set one.", ephemeral=True)
+            return
+        await interaction.followup.send(f"Your configured timezone is {tz.upper()}", ephemeral=True)
+    except Exception as e:
+        logger.error(f"Failed to show user timezone: {e}")
+        await interaction.followup.send("Error while fetching your timezone.", ephemeral=True)
+
+
 @bot.tree.command(name="giftchannel", description="Set or disable this server's gift code posting channel. Provide a channel to set; omit to disable.")
 @app_commands.describe(channel="Text channel to post gift codes in (omit to disable)")
 @app_commands.default_permissions(administrator=True)
@@ -1180,20 +1218,92 @@ async def help_command(interaction: discord.Interaction):
                     "**📅 Reminder Commands**\n"
                     "• **/reminder [time] [message] [channel]** - Set a timed reminder\n"
                     "• **/delete_reminder [id]** - Delete a specific reminder\n"
-                    "• **/listreminder** - View all active reminders (admin only)\n\n"
+                    "• **/listreminder** - View your active reminders\n"
+                    "• **/list_all_active_reminders** - (Admin) View all active reminders\n\n"
                     "**📊 Server Utility**\n"
                     "• **/serverstats** - View detailed server statistics\n"
                     "• **/mostactive** - See top active users and monthly activity graph\n\n"
                     "**🎪 Events & Personality**\n"
                     "• **/event [name]** - Get info on events (use autocomplete)\n"
                     "• **/add_trait [trait]** - Add a trait to personalize your profile\n\n"
+                    "**⚙️ Configuration & Timezones**\n"
+                    "• **/giftchannel [channel]** - Set or disable this server's gift code posting channel (admin)\n"
+                    "• **/list_gift_channel** - Show the configured gift code channel for this server\n"
+                    "• **/giftcode_check** - Force a giftcode check now (admin)\n"
+                    "• **/set_timezone [abbr]** - Set your preferred timezone for reminders (e.g., IST, CET)\n"
+                    "• **/show_timezone** - Show your configured timezone\n\n"
                     "**❓ Help**\n"
                     "• **/help** - Show this command list",
         color=0x1abc9c
     )
     embed.set_thumbnail(url="https://i.postimg.cc/Fzq03CJf/a463d7c7-7fc7-47fc-b24d-1324383ee2ff-removebg-preview.png")
     embed.set_footer(text="Type a command to get started!")
-    await interaction.response.send_message(embed=embed, ephemeral=False)
+    # Add a feedback button under the help embed
+    class FeedbackModal(discord.ui.Modal, title="Your Feedback"):
+        feedback = discord.ui.TextInput(label="Your feedback", style=discord.TextStyle.long, placeholder="Share your feedback or a bug report...", required=True, max_length=2000)
+
+        async def on_submit(self, modal_interaction: discord.Interaction):
+            # Try to send feedback to configured feedback channel, or log it
+            try:
+                feedback_text = self.feedback.value
+                feedback_channel_id = os.getenv('FEEDBACK_CHANNEL_ID')
+                posted = False
+                if feedback_channel_id:
+                    try:
+                        ch = modal_interaction.client.get_channel(int(feedback_channel_id))
+                        if ch:
+                            await ch.send(f"**Feedback from** {modal_interaction.user} (ID: {modal_interaction.user.id}):\n{feedback_text}")
+                            posted = True
+                    except Exception as e:
+                        logger.error(f"Failed to post feedback to channel: {e}")
+
+                if not posted:
+                    # Fallback: DM the bot owner if configured
+                    owner_id = os.getenv('BOT_OWNER_ID')
+                    if owner_id:
+                        try:
+                            owner = modal_interaction.client.get_user(int(owner_id))
+                            if owner:
+                                await owner.send(f"**Feedback from** {modal_interaction.user} (ID: {modal_interaction.user.id}):\n{feedback_text}")
+                                posted = True
+                        except Exception as e:
+                            logger.error(f"Failed to DM owner with feedback: {e}")
+
+                logger.info(f"Received feedback from {modal_interaction.user} (posted={posted})")
+                try:
+                    await modal_interaction.response.send_message("Thanks — your feedback has been submitted.", ephemeral=True)
+                except Exception:
+                    logger.debug("Could not send ephemeral confirmation for feedback")
+            except Exception as e:
+                logger.error(f"Error handling feedback modal submit: {e}")
+
+    class HelpView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=None)
+
+        @discord.ui.button(label="Share Feedback", style=discord.ButtonStyle.primary, custom_id="share_feedback")
+        async def share_feedback(self, button_interaction: discord.Interaction, button: discord.ui.Button):
+            try:
+                await button_interaction.response.send_modal(FeedbackModal())
+            except Exception as e:
+                logger.error(f"Failed to open feedback modal: {e}")
+                try:
+                    await button_interaction.response.send_message("Couldn't open feedback form right now.", ephemeral=True)
+                except Exception:
+                    pass
+
+    view = HelpView()
+    try:
+        if not interaction.response.is_done():
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
+        else:
+            await interaction.followup.send(embed=embed, view=view, ephemeral=False)
+    except Exception as e:
+        logger.error(f"Failed to send help embed: {e}")
+        try:
+            await interaction.followup.send(embed=embed, view=view, ephemeral=False)
+        except Exception as e2:
+            logger.error(f"Failed to send help embed via followup: {e2}")
 
 
 import sys, traceback, time

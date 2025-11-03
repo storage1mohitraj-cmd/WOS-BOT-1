@@ -878,3 +878,59 @@ discord.errors.LoginFailure: Improper token has been passed.
 2025-11-03 16:01:42,368 - Successfully synced global commands
 2025-11-03 16:02:42,334 - Synced commands globally
 2025-11-03 16:11:03,009 - Error in add_trait command: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+2025-11-03 18:29:58,858 - Halloween#3946 has connected to Discord!
+2025-11-03 18:29:58,859 - Health server task started on port 8080
+2025-11-03 18:29:58,860 - Uptime checker task started
+2025-11-03 18:29:58,860 - Giftcode poster task started
+2025-11-03 18:29:59,084 - Music cog loaded successfully
+2025-11-03 18:29:59,819 - Successfully synced global commands
+2025-11-03 18:30:59,807 - Synced commands globally
+2025-11-03 18:43:38,744 - Halloween#3946 has connected to Discord!
+2025-11-03 18:43:38,744 - Health server task started on port 8080
+2025-11-03 18:43:38,745 - Uptime checker task started
+2025-11-03 18:43:38,745 - Giftcode poster task started
+2025-11-03 18:43:38,935 - Music cog loaded successfully
+2025-11-03 18:43:39,690 - Successfully synced global commands
+2025-11-03 18:44:39,717 - Synced commands globally
+2025-11-03 19:05:01,327 - Halloween#3946 has connected to Discord!
+2025-11-03 19:05:01,327 - Error loading music cog: Extension 'music_cog' is already loaded.
+2025-11-03 19:05:01,358 - Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\app.py", line 127, in on_ready
+    await bot.load_extension('music_cog')
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 1034, in load_extension
+    raise errors.ExtensionAlreadyLoaded(name)
+discord.ext.commands.errors.ExtensionAlreadyLoaded: Extension 'music_cog' is already loaded.
+
+2025-11-03 19:05:02,740 - Synced commands globally
+2025-11-03 19:05:02,740 - Error in on_ready: Task is already launched and is not completed.
+2025-11-03 19:14:59,910 - Halloween#3946 has connected to Discord!
+2025-11-03 19:14:59,910 - Health server task started on port 8080
+2025-11-03 19:14:59,911 - Uptime checker task started
+2025-11-03 19:14:59,911 - Giftcode poster task started
+2025-11-03 19:15:00,529 - Music cog loaded successfully
+2025-11-03 19:15:01,227 - Successfully synced global commands
+2025-11-03 19:16:01,250 - Synced commands globally
+2025-11-03 19:23:19,250 - Failed to send help embed: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+2025-11-03 19:24:23,322 - Received feedback from magnus_025096 (posted=False)
+2025-11-03 19:59:48,821 - Halloween#3946 has connected to Discord!
+2025-11-03 19:59:48,822 - Error loading music cog: Extension 'music_cog' is already loaded.
+2025-11-03 19:59:48,827 - Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\app.py", line 127, in on_ready
+    await bot.load_extension('music_cog')
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 1034, in load_extension
+    raise errors.ExtensionAlreadyLoaded(name)
+discord.ext.commands.errors.ExtensionAlreadyLoaded: Extension 'music_cog' is already loaded.
+
+2025-11-03 19:59:58,765 - Synced commands globally
+2025-11-03 19:59:58,767 - Error in on_ready: Task is already launched and is not completed.
+2025-11-03 21:27:21,832 - Halloween#3946 has connected to Discord!
+2025-11-03 21:27:21,834 - Error loading music cog: Extension 'music_cog' is already loaded.
+2025-11-03 21:27:21,835 - Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\app.py", line 127, in on_ready
+    await bot.load_extension('music_cog')
+  File "C:\Program Files\Python313\Lib\site-packages\discord\ext\commands\bot.py", line 1034, in load_extension
+    raise errors.ExtensionAlreadyLoaded(name)
+discord.ext.commands.errors.ExtensionAlreadyLoaded: Extension 'music_cog' is already loaded.
+
+2025-11-03 21:27:23,347 - Synced commands globally
+2025-11-03 21:27:23,348 - Error in on_ready: Task is already launched and is not completed.

@@ -9,6 +9,51 @@ import discord
 from discord.ext import commands, tasks
 import logging
 import pytz
+import threading
+
+USER_TZ_FILE = Path(__file__).with_name('user_timezones.json')
+
+
+def _load_user_timezones() -> dict:
+    try:
+        if USER_TZ_FILE.exists():
+            with USER_TZ_FILE.open('r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load user timezones: {e}")
+    return {}
+
+
+def _save_user_timezones(data: dict):
+    try:
+        with USER_TZ_FILE.open('w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save user timezones: {e}")
+
+
+_user_tz_lock = threading.Lock()
+
+
+def get_user_timezone(user_id: Union[int, str]) -> Optional[str]:
+    try:
+        with _user_tz_lock:
+            data = _load_user_timezones()
+            return data.get(str(user_id))
+    except Exception:
+        return None
+
+
+def set_user_timezone(user_id: Union[int, str], tz_abbr: str) -> bool:
+    try:
+        with _user_tz_lock:
+            data = _load_user_timezones()
+            data[str(user_id)] = tz_abbr.lower()
+            _save_user_timezones(data)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to set user timezone for {user_id}: {e}")
+        return False
 
 logger = logging.getLogger(__name__)
 
@@ -907,15 +952,38 @@ class ReminderSystem:
         )
         embed.set_thumbnail(url=REMINDER_IMAGES['set'])
         
-        # Convert back to local timezone for display
-        local_tz = TimeParser.get_local_timezone()
-        display_time = TimeParser.utc_to_local(reminder_time, local_tz)
-        
-        embed.add_field(
-            name="⏰ Scheduled For",
-            value=f"{display_time.strftime('%B %d, %Y at %I:%M %p')} ({local_tz.upper()})",
-            inline=True
-        )
+        # Display scheduled time according to user's timezone preference (if set).
+        try:
+            user_tz = None
+            try:
+                # interaction may be provided in the calling context
+                user_tz = get_user_timezone(interaction.user.id)
+            except Exception:
+                user_tz = None
+
+            if user_tz:
+                # Convert UTC reminder_time to user's timezone for display
+                display_time = TimeParser.utc_to_local(reminder_time, user_tz)
+                tz_label = user_tz.upper()
+            else:
+                # Default to UTC display if user hasn't set a timezone
+                display_time = reminder_time
+                tz_label = 'UTC'
+
+            embed.add_field(
+                name="⏰ Scheduled For",
+                value=f"{display_time.strftime('%B %d, %Y at %I:%M %p')} ({tz_label})",
+                inline=True
+            )
+        except Exception:
+            # Fallback: show system-local time if something goes wrong
+            local_tz = TimeParser.get_local_timezone()
+            display_time = TimeParser.utc_to_local(reminder_time, local_tz)
+            embed.add_field(
+                name="⏰ Scheduled For",
+                value=f"{display_time.strftime('%B %d, %Y at %I:%M %p')} ({local_tz.upper()})",
+                inline=True
+            )
         
         embed.add_field(
             name="⏳ Time Until",
