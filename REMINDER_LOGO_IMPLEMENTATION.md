@@ -58,7 +58,7 @@ The following embed types now have logos:
 The logos will automatically appear when users:
 1. Create a reminder with `/reminder`
 2. View reminders with `/reminders` 
-3. Delete reminders with `/delete_reminder`
+ 3. Manage reminders with `/reminderdashboard`
 4. Receive reminder notifications in their specified channels
 
 No additional configuration is needed - the system will automatically use the appropriate logo based on the context.

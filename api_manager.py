@@ -314,50 +314,71 @@ async def make_request(messages: List[Dict[str, str]], max_tokens: int = 1000, i
             return await manager.make_request(messages, max_tokens)
 
 
-async def make_image_request(prompt: str, api_key: str = None) -> bytes:
-    """Make a request to generate an image using Hugging Face or OpenAI API"""
+async def make_image_request(prompt: str, api_key: str = None, width: int = None, height: int = None, model: str = None) -> bytes:
+    """Make a request to generate an image using Hugging Face or OpenAI API.
+
+    Args:
+        prompt: Text prompt to generate the image from.
+        api_key: Optional API key override (not used currently).
+        width: Optional desired image width in pixels.
+        height: Optional desired image height in pixels.
+        model: Optional model identifier to override the HUGGINGFACE_MODEL env var.
+
+    Returns:
+        Raw image bytes.
+    """
 
     # First try Hugging Face
-    hf_tokens = [
-        os.getenv('HUGGINGFACE_API_TOKEN'),
-        os.getenv('HUGGINGFACE_API_TOKEN_1'),
-        os.getenv('HUGGINGFACE_API_TOKEN_2')
-    ]
-    hf_tokens = [token for token in hf_tokens if token]
+    # Collect all HUGGINGFACE_API_TOKEN* env vars dynamically (preserve insertion order)
+    hf_tokens = []
+    for k, v in os.environ.items():
+        if k.startswith('HUGGINGFACE_API_TOKEN') and v:
+            hf_tokens.append(v)
 
     if hf_tokens:
         logger.info("Trying Hugging Face API for image generation")
-        model = os.getenv('HUGGINGFACE_MODEL', 'stabilityai/stable-diffusion-xl-base-1.0')
-        url = f"https://api-inference.huggingface.co/models/{model}"
+        # Allow the caller to override the model; otherwise fall back to env
+        hf_model = model or os.getenv('HUGGINGFACE_MODEL', 'stabilityai/stable-diffusion-xl-base-1.0')
+        # Use the new Hugging Face Inference Router endpoint (router base)
+        # The router expects the model name in the JSON payload rather than the URL path.
+        url = "https://router.huggingface.co/hf-inference"
+
+        # Determine default sizes based on model family
+        is_xl = "xl" in hf_model.lower()
+        default_w = 1024 if is_xl else 512
+        default_h = 1024 if is_xl else 512
+
+        # Use provided width/height if available, otherwise defaults
+        use_w = int(width) if width else default_w
+        use_h = int(height) if height else default_h
 
         # Adjust parameters based on model
-        if "xl" in model.lower():
+        common_parameters = {
+            "negative_prompt": "blurry, low quality, distorted",
+            "guidance_scale": 7.5,
+            "width": use_w,
+            "height": use_h,
+        }
+
+        if is_xl:
             # SDXL parameters
-            payload = {
-                "inputs": prompt,
-                "parameters": {
-                    "negative_prompt": "blurry, low quality, distorted",
-                    "num_inference_steps": 30,  # Reduced for speed
-                    "guidance_scale": 7.5,
-                    "width": 1024,
-                    "height": 1024
-                }
-            }
+            common_parameters["num_inference_steps"] = 30
         else:
             # SD 1.5 or other models - smaller, faster
-            payload = {
-                "inputs": prompt,
-                "parameters": {
-                    "negative_prompt": "blurry, low quality, distorted",
-                    "num_inference_steps": 20,  # Much faster
-                    "guidance_scale": 7.5,
-                    "width": 512,
-                    "height": 512
-                }
-            }
+            common_parameters["num_inference_steps"] = 20
+
+        # Router expects top-level model key plus inputs and parameters
+        payload = {
+            "model": hf_model,
+            "inputs": prompt,
+            "parameters": common_parameters,
+        }
 
         # Try each token
+        local_invalid_tokens = set()
         for token in hf_tokens:
+            if token in local_invalid_tokens:
+                continue
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json"
@@ -365,19 +386,104 @@ async def make_image_request(prompt: str, api_key: str = None) -> bytes:
 
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.post(url, json=payload, headers=headers, timeout=120) as response:
-                        if response.status == 200:
-                            logger.info("Successfully generated image with Hugging Face")
-                            return await response.read()
-                        elif response.status == 503:
-                            # Model loading, continue to next token
-                            continue
-                        elif response.status == 401:
-                            # Unauthorized, try next token
-                            continue
-                        else:
-                            error_text = await response.text()
-                            logger.warning(f"Hugging Face failed with token ending in ...{token[-4:]}: status {response.status}: {error_text}")
+                    # Try two router patterns: with model in the path, and with model in payload
+                    url_with_model = f"https://router.huggingface.co/hf-inference/{hf_model}"
+                    url_base = url  # https://router.huggingface.co/hf-inference
+
+                    # Prepare two payloads: one without 'model' for the path-style, one with 'model' for the base router
+                    payload_path = {"inputs": prompt, "parameters": common_parameters}
+                    payload_base = payload
+
+                    for attempt_url, attempt_payload in ((url_with_model, payload_path), (url_base, payload_base)):
+                        try:
+                            async with session.post(attempt_url, json=attempt_payload, headers=headers, timeout=120) as response:
+                                text_ct = response.headers.get("Content-Type", "") or response.headers.get("content-type", "")
+                                body_text = await response.text()
+
+                                # If we got a 403/401, inspect body for expired token or permission issues
+                                if response.status in (401, 403):
+                                    logger.warning(f"Hugging Face unauthorized for token ending in ...{token[-4:]}: {body_text}")
+                                    # Try to parse JSON error messages for 'expired' or similar hints
+                                    try:
+                                        err = json.loads(body_text)
+                                        err_msg = err.get("error") if isinstance(err, dict) else str(err)
+                                    except Exception:
+                                        err_msg = body_text
+
+                                    if isinstance(err_msg, str) and ("expired" in err_msg.lower() or "expired" in body_text.lower()):
+                                        logger.warning(f"Hugging Face token ending in ...{token[-4:]} appears expired. Please refresh the token in your .env")
+                                        local_invalid_tokens.add(token)
+                                        # don't retry this token for other router urls
+                                        continue
+                                    # otherwise, try next URL/pattern
+                                    continue
+
+                                # If we got a 404, the model may not exist or your account lacks access
+                                if response.status == 404:
+                                    logger.warning(f"Hugging Face router {attempt_url} returned 404 (model not found or no access): {body_text}")
+                                    # try next URL or next token
+                                    continue
+
+                                # If we get raw image bytes
+                                if response.status == 200 and text_ct.startswith("image/"):
+                                    logger.info("Successfully generated image with Hugging Face (binary)")
+                                    return await response.read()
+
+                                # If JSON returned, try to parse and look for base64 image fields
+                                if response.status == 200:
+                                    try:
+                                        j = json.loads(body_text)
+                                        # Common patterns: {'images': ['data:image/png;base64,...']} or {'image': 'data:...base64,...'}
+                                        # Or 'data' field with base64
+                                        b64_str = None
+                                        if isinstance(j, dict):
+                                            for key in ("images", "image", "data", "result"):
+                                                if key in j:
+                                                    val = j[key]
+                                                    if isinstance(val, list) and val:
+                                                        candidate = val[0]
+                                                    else:
+                                                        candidate = val
+                                                    if isinstance(candidate, str) and "base64" in candidate:
+                                                        # Strip data:image/...;base64, prefix if present
+                                                        if "," in candidate:
+                                                            b64_str = candidate.split(",", 1)[1]
+                                                        else:
+                                                            b64_str = candidate
+                                                        break
+                                        if b64_str:
+                                            import base64
+
+                                            try:
+                                                data_bytes = base64.b64decode(b64_str)
+                                                logger.info("Successfully decoded base64 image from Hugging Face JSON response")
+                                                return data_bytes
+                                            except Exception as be:
+                                                logger.warning(f"Failed to decode base64 from HF JSON: {be}")
+                                        # If JSON contains an 'error' field, treat as failure and continue
+                                        if isinstance(j, dict) and j.get("error"):
+                                            logger.warning(f"Hugging Face returned error JSON: {j.get('error')}")
+                                            continue
+                                    except Exception:
+                                        # Non-JSON or unhandled JSON structure -> fallthrough to logging
+                                        pass
+
+                                # Handle known non-200 statuses
+                                if response.status == 503:
+                                    # Model loading, continue to next token
+                                    logger.warning(f"Hugging Face model loading for token ending in ...{token[-4:]}: {body_text}")
+                                    break
+                                if response.status == 401:
+                                    # Unauthorized, try next token
+                                    logger.warning(f"Hugging Face unauthorized for token ending in ...{token[-4:]}: {body_text}")
+                                    break
+
+                                # Log whatever we received and try next token
+                                logger.warning(f"Hugging Face failed with token ending in ...{token[-4:]}: status {response.status}: {body_text}")
+                                break
+                        except Exception as e:
+                            logger.warning(f"Hugging Face request exception for url {attempt_url} with token ending in ...{token[-4:]}: {e}")
+                            # Try next URL for the same token
                             continue
             except Exception as e:
                 logger.warning(f"Hugging Face exception with token ending in ...{token[-4:]}: {e}")

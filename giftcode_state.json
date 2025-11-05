@@ -1,12 +1,22 @@
 {
   "channels": {
-    "1147956569271697518": 1147956569724694608
+    "1147956569271697518": 1406122908476112956,
+    "1133463326182080634": 1133463326182080637
   },
   "sent": {
     "1147956569271697518": [
-      "TrickorTreat25",
-      "DiscordMilestone",
-      "OFFICIALSTORE"
+      "DCMILESTONE",
+      "DISCORDMILESTONE",
+      "OFFICIALSTORE",
+      "TRICKORTREAT25",
+      "WOS1105"
+    ],
+    "1133463326182080634": [
+      "DCMILESTONE",
+      "DISCORDMILESTONE",
+      "OFFICIALSTORE",
+      "WOS1105"
     ]
-  }
+  },
+  "initialized": true
 }

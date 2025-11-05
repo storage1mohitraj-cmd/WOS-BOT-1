@@ -1023,13 +1023,14 @@ class ReminderSystem:
                 inline=True
             )
         
-        embed.set_footer(text="💡 Use /listreminder to view all active reminders")
-        
+        embed.set_footer(text="💡 Use /reminderdashboard to manage your reminders")
+
         try:
             await interaction.followup.send(embed=embed, ephemeral=True)
         except Exception as e:
             logger.warning(f"Failed to send reminder success followup to interaction: {e}")
             # Still return True because database operation succeeded
+
         return True
     
     async def list_user_reminders(self, interaction: discord.Interaction):
@@ -1077,9 +1078,9 @@ class ReminderSystem:
             )
         
         if len(user_reminders) > 10:
-            embed.set_footer(text=f"Showing 10 of {len(user_reminders)} reminders. Use /delete_reminder to remove old ones.")
+            embed.set_footer(text=f"Showing 10 of {len(user_reminders)} reminders. Use /reminderdashboard to manage them.")
         else:
-            embed.set_footer(text="💡 Use /delete_reminder <ID> to remove a reminder")
+            embed.set_footer(text="💡 Use /reminderdashboard to delete or change timezone for a reminder")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
@@ -1163,9 +1164,9 @@ class ReminderSystem:
                 )
 
             if len(all_reminders) > 15:
-                embed.set_footer(text=f"Showing 15 of {len(all_reminders)} reminders. Use /delete_reminder to remove specific ones.")
+                embed.set_footer(text=f"Showing 15 of {len(all_reminders)} reminders. Use /reminderdashboard to manage them.")
             else:
-                embed.set_footer(text="💡 Use /delete_reminder <ID> to remove a reminder")
+                embed.set_footer(text="💡 Use /reminderdashboard to delete a reminder")
 
             if interaction.response.is_done():
                 await interaction.followup.send(embed=embed, ephemeral=True)

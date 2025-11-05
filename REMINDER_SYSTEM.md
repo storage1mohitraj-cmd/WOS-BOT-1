@@ -29,16 +29,8 @@ Set a new reminder with a custom message and time.
 ### `/reminders`
 View all your active reminders with their IDs, messages, and scheduled times.
 
-### `/delete_reminder <reminder_id>`
-Delete a specific reminder using its ID number.
-
-**Parameters:**
-- `reminder_id`: The ID of the reminder to delete (found with `/reminders`)
-
-**Example:**
-```
-/delete_reminder reminder_id:5
-```
+### Reminder deletion
+Reminders can now be deleted via the interactive `/reminderdashboard` (open the dashboard and use the Delete Reminder button).
 
 ## ⏰ Supported Time Formats
 
@@ -102,7 +94,7 @@ CREATE TABLE reminders (
 ### Managing Reminders
 ```discord
 /reminders  # View all active reminders
-/delete_reminder reminder_id:3  # Delete reminder #3
+/reminderdashboard  # Open interactive reminder dashboard to list/delete/set timezone
 ```
 
 ### Advanced Time Formats
@@ -114,13 +106,14 @@ CREATE TABLE reminders (
 
 ## 📝 Reminder Notifications
 
+
 When a reminder triggers, the bot sends a rich embed message containing:
 
 - **User mention** to grab attention
 - **Original message** you wanted to be reminded about
 - **When it was set** (how long ago)
 - **Scheduled time** it was meant to trigger
-- **Management tip** about using `/reminders` command
+-- **Management tip** about using `/reminderdashboard` to list/delete reminders and set timezone
 
 ## 🔧 Error Handling
 
@@ -153,7 +146,7 @@ The reminder system is fully integrated into the main bot:
 
 1. **Use natural language**: "tomorrow 3pm" is easier than "2024-09-07 15:00"
 2. **Check your reminders**: Use `/reminders` to see what's scheduled
-3. **Clean up old reminders**: Delete completed reminders with `/delete_reminder`
+3. **Clean up old reminders**: Use `/reminderdashboard` to delete completed reminders
 4. **Be specific**: Include context in your reminder messages
 5. **Test with short times**: Try "2 minutes" to test the system
 
