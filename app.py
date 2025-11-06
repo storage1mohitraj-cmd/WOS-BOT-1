@@ -792,7 +792,14 @@ async def birthday(interaction: discord.Interaction):
         embed.set_image(url="https://cdn.discordapp.com/attachments/1435569370389807144/1435875606632988672/v04HfJr.png?ex=690d8edd&is=690c3d5d&hm=83662954ad3897d2b39763d40c347e27222018839a178420a57eb643ffbc3542")
 
         view = BirthdayView()
-        await interaction.response.send_message(embed=embed, view=view)
+        await interaction.response.send_message(embed=embed, view=view, wait=True)
+        # Register this view instance for the sent message so button callbacks
+        # remain available after restarts
+        try:
+            msg = await interaction.original_response()
+            bot.add_view(view, message_id=msg.id)
+        except Exception as reg_err:
+            logger.debug(f"Failed to register BirthdayView for message: {reg_err}")
     except Exception as e:
         logger.error(f"Error in /birthday command: {e}")
         try:
@@ -2751,13 +2758,27 @@ async def help_command(interaction: discord.Interaction):
     view = HelpView()
     try:
         if not interaction.response.is_done():
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
+            sent = await interaction.response.send_message(embed=embed, view=view, ephemeral=False, wait=True)
         else:
-            await interaction.followup.send(embed=embed, view=view, ephemeral=False)
+            sent = await interaction.followup.send(embed=embed, view=view, ephemeral=False, wait=True)
+        # Register this view instance for the sent message so button callbacks
+        # remain available after restarts
+        try:
+            if hasattr(sent, 'id'):  # followup.send with wait=True
+                bot.add_view(view, message_id=sent.id)
+            else:  # response.send_message returns None, get from original_response
+                sent = await interaction.original_response()
+                bot.add_view(view, message_id=sent.id)
+        except Exception as reg_err:
+            logger.debug(f"Failed to register HelpView for message: {reg_err}")
     except Exception as e:
         logger.error(f"Failed to send help embed: {e}")
         try:
-            await interaction.followup.send(embed=embed, view=view, ephemeral=False)
+            sent = await interaction.followup.send(embed=embed, view=view, ephemeral=False, wait=True)
+            try:
+                bot.add_view(view, message_id=sent.id)
+            except Exception:
+                pass
         except Exception as e2:
             logger.error(f"Failed to send help embed via followup: {e2}")
 
