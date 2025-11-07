@@ -1,3 +1,36 @@
+import os
+import sys
+from pathlib import Path
+
+# If the repository has a Python 3.11 venv at the repo root named `.venv311`,
+# prefer running the bot under that venv automatically so the user can run
+# `python app.py` (system python) and the script will re-exec itself with
+# the venv's python. This avoids requiring manual activation.
+try:
+    repo_dir = Path(__file__).resolve().parent
+    venv_python = (repo_dir.parent / '.venv311' / 'Scripts' / 'python.exe')
+    # Only re-exec if the venv python exists and we're not already running under it
+    if venv_python.exists():
+        try:
+            current_py = Path(sys.executable).resolve()
+            venv_py_resolved = venv_python.resolve()
+        except Exception:
+            current_py = None
+            venv_py_resolved = None
+
+        if venv_py_resolved and current_py != venv_py_resolved and os.environ.get('RUNNING_UNDER_VENV311') != '1':
+            # mark that we've re-executed to avoid an infinite loop
+            os.environ['RUNNING_UNDER_VENV311'] = '1'
+            os.environ.setdefault('PYTHONUTF8', '1')
+            # Use an absolute script path when re-execing so the new interpreter can open it
+            script_path = str(Path(__file__).resolve())
+            args = [str(venv_python), script_path] + sys.argv[1:]
+            os.execv(str(venv_python), args)
+except Exception:
+    # best-effort: if something goes wrong here, fall back to continuing under
+    # the current interpreter rather than failing to import the module.
+    pass
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -39,6 +72,19 @@ import re
 from wos_api import fetch_player_info
 from beartrap_rag import is_beartrap_question, answer_beartrap_question
  
+# Ensure stdout/stderr use UTF-8 to avoid UnicodeEncodeError on Windows consoles
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    else:
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True)
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True)
+except Exception:
+    # Best-effort - if this fails, logging may still error but we avoid crashing at import
+    pass
+
 # Feedback state file (optional persistent feedback channel)
 FEEDBACK_STATE_PATH = Path(__file__).parent / "feedback_state.json"
 FEEDBACK_LOG_PATH = Path(__file__).parent / "feedback_log.txt"
@@ -1149,6 +1195,13 @@ async def on_ready():
             await register_existing_persistent_views(limit_per_channel=100)
         except Exception as reg_err:
             logger.debug(f"Failed to register existing persistent views on startup: {reg_err}")
+
+        # Load playerinfo cog (if present in the same package) to register /playerinfo
+        try:
+            await bot.load_extension("playerinfo")
+            logger.info('Loaded playerinfo extension')
+        except Exception as pi_err:
+            logger.debug(f"playerinfo extension not loaded or missing: {pi_err}")
 
         reminder_system.check_reminders.start()
 
@@ -2295,38 +2348,7 @@ async def reminderdashboard(interaction: discord.Interaction):
 # /giftcode_check command removed per user request. Previously forced a giftcode check and posting.
 
 
-@bot.tree.command(name="playerinfo", description="Fetch player info by WOS player id")
-@app_commands.describe(player_id="Player id to look up")
-async def playerinfo(interaction: discord.Interaction, player_id: str):
-    await thinking_animation.show_thinking(interaction)
-    try:
-        # Normalize player id string
-        pid = str(player_id).strip()
-        info = await fetch_player_info(pid)
-        await thinking_animation.stop_thinking(interaction, delete_message=True)
-        if not info:
-            await interaction.followup.send(f"No public info found for player id {pid}.", ephemeral=True)
-            return
-
-        embed = discord.Embed(title=f"Player • {info.get('name') or pid}", color=0x3498db)
-        embed.add_field(name="ID", value=str(info.get("id") or pid), inline=True)
-        if info.get("level"):
-            embed.add_field(name="Level", value=str(info.get("level")), inline=True)
-        if info.get("power"):
-            embed.add_field(name="Power", value=str(info.get("power")), inline=True)
-        if info.get("alliance"):
-            embed.add_field(name="Alliance", value=str(info.get("alliance")), inline=True)
-        if info.get("source"):
-            embed.set_footer(text=f"Source: {info.get('source')}")
-
-        await interaction.followup.send(embed=embed)
-    except Exception as e:
-        logger.error(f"playerinfo failed: {e}")
-        try:
-            await thinking_animation.stop_thinking(interaction, delete_message=True)
-        except Exception:
-            pass
-        await interaction.followup.send("Failed to fetch player info. Check logs.", ephemeral=True)
+# playerinfo handled by cog; references removed from main code
 
 
 @bot.tree.command(name="giftcodesettings", description="Open interactive gift code settings dashboard for this server")
@@ -2897,7 +2919,6 @@ async def help_command(interaction: discord.Interaction):
             "• **/reminder [time] [message] [channel]** - Create a timed reminder\n"
             "• **/reminderdashboard** - Open interactive reminder dashboard (list/delete/timezone)\n\n"
             "**👥 Player & Server**\n"
-            "• **/playerinfo [player_id]** - Fetch Whiteout Survival player info-UNDER developement\n"
             "• **/serverstats** - View server statistics and charts\n"
             "• **/mostactive** - Show top active users and activity graph\n\n"
             "**🧭 Profile & Events**\n"
