@@ -13,7 +13,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 try:
-    from mongo_adapters import mongo_enabled, UserProfilesAdapter
+    from db.mongo_adapters import mongo_enabled, UserProfilesAdapter
 except Exception:
     mongo_enabled = lambda: False
     UserProfilesAdapter = None

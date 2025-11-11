@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "whiteout-survival-476516",
+  "private_key_id": "418d8049bb21db87831966f69f9b96592a58de7b",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDhzUvT3Z4V33ul\n5Q5Nm+ILJpK/lgZDqAJtFK+Xqdr7Sq1CPiA/ATogG7ucxgb967b458UIecL7NQaL\ndiwQtW0DgmOGE2iy5CsGjTu8D88w/r4mHDf3SIaVvfoXTQl9inwpQQuQfIoNo73P\nQ5a4iOqX1i2lyN58fJrKSKSmNi3pI+petv7kl2bnY5ZVgZKeG4c/ahldA7sE4agD\n/cPZ5rnox+ycG6a4W+NaEpvx/InCM+1eUdfkUCbtZBJuWrDawhrGXUL2TTMm1+4I\nm0cZEOKKZRFbtjtVtL7p4HWFGq24vRSd0gGTjEOnRFg2YDoxo7vaXsJOehZbUxel\nEHmGIgXpAgMBAAECggEAEDxlw7x/Xc1C+SETj+BcjDa1fecjWNa0zfPF0x7t1acp\n9sW8JdZIaqnz1IhR/7dk4a2F97UMSxR7Uv3SmfpMS2CjGASUllWyWPdAy1ChB5cu\n7v3qcZ0aaEalEUCDJS7Bp2m7k3kQ/X1qQYP3oMSKMb6/Fi5E/n3V13kKYGqBj0OD\nmdNo3sJnMA7rZ7MV5H7vrO3sTNSZ+4ey+khI82qlnUGRk1FFzR/FXvxKlXF0tRSK\nzzq/D83nVcSFp1SAnwFuuxtPVJiFjAA4HDRv/vHj0ryvT3MIvJ02U1UmyIijd9DZ\nXcARAZtOTJSytouI+XAaUtyz5gzX96MPGzZYJVivvQKBgQD2MAK3Ifha3C+7r90g\nnn9xiwZ8Yx3F8O885okUpsf+F2GF4kTblJqGY1PNbBk+G0g5z32mDJ1uO8466Y22\ntgzAwS2gsgTeU1PmUkCMeijihK5UKmhdkQyaBntKjBloWWent8XwkZ9Xn9ivVUCY\nCiUa0gpBPvcgif2nMuyGEsPD9wKBgQDqzUelUVZz8YTUCj6ksFcHGS9Np/sQXDw8\nwh7NGE4alcbf3CUR9WcVW6DJwbv961bWW1WVEL3nqrredlwXYQ+nrS0u/jqPpodf\nyYUJpMLxzy37Im+8uJ4PmWoDv6aHdj3pIGxvXuCq6ryf/jXg8B1YT4gEirMcG/Ud\nrNwmPmRNHwKBgAdIplvqumFd0F+6NU2owtaGKXv2psPbfAiOPZIJ2TLwWCdQ6X6h\np+y/9ZPHVfvbbMihFfOavfGr/U8K5/F282uki4gMnE5DouDWoChH2PvStyGwW4Qh\nLYFFHdK30Gyg8IsqycVzWYaLKSsO16ln628etcT2avNggcu3mv3ggkBDAoGAO0mC\nIbgcAEKnq3K6xpLQJraxPwZ/Wm4vt5e8d0T/066l/Lh1k8dHNBlizA7jDQZzcsS1\nI2KK0QhHDw0Ly8tyTIBpvEftOYBvBjy4Hus/XhdWIOddF2X2YzH1luS5g9LTZx4M\nw0JNsFp9Lljd+eInRrkuOxdaimp0xf1zySRP5zkCgYEA0cRhDwHH4wV3QFXvP3gg\nwAhUhypYqky4wokWKlUymQPv/fG1L/j7wnGyIUCjDjQ9EEZivm79KykbcuVEIpgG\noBQmblGwuyvtecwHvaaltrkhubknLRPSS0uaVUAotr50O9lhvfsgpc8e5WIzwzdq\nGNyfZmMVhw15k/AKwpKnlFQ=\n-----END PRIVATE KEY-----\n",
+  "client_email": "discord-bot-service@whiteout-survival-476516.iam.gserviceaccount.com",
+  "client_id": "104628541477316091618",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/discord-bot-service%40whiteout-survival-476516.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

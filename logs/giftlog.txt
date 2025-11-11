@@ -1,0 +1,240 @@
+2025-11-09 15:41:30,479 - 2025-11-09 15:41:30.478669 API REQUEST - Player Info
+Player ID: 244886619
+Response Code: 200
+Response JSON:
+{
+  "code": 0,
+  "data": {
+    "fid": 244886619,
+    "nickname": "Reloisback",
+    "kid": 1639,
+    "stove_lv": 45,
+    "stove_lv_content": "https://gof-formal-avatar.akamaized.net/img/icon/stove_lv_3.png",
+    "avatar_image": "https://gof-formal-avatar.akamaized.net/avatar/2025/01/07/JKAR7o_1736258751.png",
+    "total_recharge_amount": 0
+  },
+  "msg": "success",
+  "err_code": ""
+}
+--------------------------------------------------
+2025-11-09 15:41:31,827 - 2025-11-09 15:41:31.827166 API REQ - Gift Code Redeem
+FID:244886619, Code:gogoWOS, Captcha:MFDF
+Resp Code: 200
+Response JSON:
+{
+  "code": 1,
+  "data": [],
+  "msg": "RECEIVED.",
+  "err_code": 40008
+}
+--------------------------------------------------
+2025-11-09 15:41:34,412 - 2025-11-09 15:41:34.411932 API REQUEST - Player Info
+Player ID: 244886619
+Response Code: 200
+Response JSON:
+{
+  "code": 0,
+  "data": {
+    "fid": 244886619,
+    "nickname": "Reloisback",
+    "kid": 1639,
+    "stove_lv": 45,
+    "stove_lv_content": "https://gof-formal-avatar.akamaized.net/img/icon/stove_lv_3.png",
+    "avatar_image": "https://gof-formal-avatar.akamaized.net/avatar/2025/01/07/JKAR7o_1736258751.png",
+    "total_recharge_amount": 0
+  },
+  "msg": "success",
+  "err_code": ""
+}
+--------------------------------------------------
+2025-11-09 15:41:35,155 - 2025-11-09 15:41:35.155184 API REQ - Gift Code Redeem
+FID:244886619, Code:DiscordMilestone, Captcha:E8AY
+Resp Code: 200
+Response JSON:
+{
+  "code": 1,
+  "data": [],
+  "msg": "RECEIVED.",
+  "err_code": 40008
+}
+--------------------------------------------------
+2025-11-09 15:41:37,572 - 2025-11-09 15:41:37.572725 API REQUEST - Player Info
+Player ID: 244886619
+Response Code: 200
+Response JSON:
+{
+  "code": 0,
+  "data": {
+    "fid": 244886619,
+    "nickname": "Reloisback",
+    "kid": 1639,
+    "stove_lv": 45,
+    "stove_lv_content": "https://gof-formal-avatar.akamaized.net/img/icon/stove_lv_3.png",
+    "avatar_image": "https://gof-formal-avatar.akamaized.net/avatar/2025/01/07/JKAR7o_1736258751.png",
+    "total_recharge_amount": 0
+  },
+  "msg": "success",
+  "err_code": ""
+}
+--------------------------------------------------
+2025-11-09 15:41:38,395 - 2025-11-09 15:41:38.395215 API REQ - Gift Code Redeem
+FID:244886619, Code:DCMilestone, Captcha:TZN4
+Resp Code: 200
+Response JSON:
+{
+  "code": 1,
+  "data": [],
+  "msg": "RECEIVED.",
+  "err_code": 40008
+}
+--------------------------------------------------
+2025-11-09 15:48:06,586 - 2025-11-09 15:48:06.586493 API REQUEST - Player Info
+Player ID: 494333522
+Response Code: 200
+Response JSON:
+{
+  "code": 0,
+  "data": {
+    "fid": 494333522,
+    "nickname": "G\u03b9\u0273\u03b1",
+    "kid": 3063,
+    "stove_lv": 45,
+    "stove_lv_content": "https://gof-formal-avatar.akamaized.net/img/icon/stove_lv_3.png",
+    "avatar_image": "https://gof-formal-avatar.akamaized.net/avatar/2025/10/13/OwQgpB_1760395575.png",
+    "total_recharge_amount": 0
+  },
+  "msg": "success",
+  "err_code": ""
+}
+--------------------------------------------------
+2025-11-09 15:48:07,345 - 2025-11-09 15:48:07.345698 API REQ - Gift Code Redeem
+FID:494333522, Code:gogoWOS, Captcha:97HR
+Resp Code: 200
+Response JSON:
+{
+  "code": 1,
+  "data": [],
+  "msg": "CAPTCHA CHECK ERROR.",
+  "err_code": 40103
+}
+--------------------------------------------------
+2025-11-09 15:48:10,663 - 2025-11-09 15:48:10.663572 API REQ - Gift Code Redeem
+FID:494333522, Code:gogoWOS, Captcha:E99K
+Resp Code: 200
+Response JSON:
+{
+  "code": 1,
+  "data": [],
+  "msg": "CAPTCHA CHECK ERROR.",
+  "err_code": 40103
+}
+--------------------------------------------------
+2025-11-09 15:48:13,016 - 2025-11-09 15:48:13.016037 API REQ - Gift Code Redeem
+FID:494333522, Code:gogoWOS, Captcha:J8SX
+Resp Code: 200
+Response JSON:
+{
+  "code": 1,
+  "data": [],
+  "msg": "SAME TYPE EXCHANGE.",
+  "err_code": 40011
+}
+--------------------------------------------------
+2025-11-09 15:48:13,021 - DATABASE - Saved/Updated status for User 494333522, Code 'gogoWOS', Status SAME TYPE EXCHANGE
+
+2025-11-09 17:41:12,233 - 2025-11-09 17:41:12.232614 API REQUEST - Player Info
+Player ID: 494333522
+Response Code: 200
+Response JSON:
+{
+  "code": 0,
+  "data": {
+    "fid": 494333522,
+    "nickname": "G\u03b9\u0273\u03b1",
+    "kid": 3063,
+    "stove_lv": 45,
+    "stove_lv_content": "https://gof-formal-avatar.akamaized.net/img/icon/stove_lv_3.png",
+    "avatar_image": "https://gof-formal-avatar.akamaized.net/avatar/2025/10/13/OwQgpB_1760395575.png",
+    "total_recharge_amount": 0
+  },
+  "msg": "success",
+  "err_code": ""
+}
+--------------------------------------------------
+2025-11-09 17:41:12,979 - 2025-11-09 17:41:12.978847 API REQ - Gift Code Redeem
+FID:494333522, Code:DiscordMilestone, Captcha:S2EJ
+Resp Code: 200
+Response JSON:
+{
+  "code": 1,
+  "data": [],
+  "msg": "RECEIVED.",
+  "err_code": 40008
+}
+--------------------------------------------------
+2025-11-09 17:41:12,983 - DATABASE - Saved/Updated status for User 494333522, Code 'DiscordMilestone', Status RECEIVED
+
+2025-11-09 17:42:14,112 - 2025-11-09 17:42:14.112687 API REQUEST - Player Info
+Player ID: 494333522
+Response Code: 200
+Response JSON:
+{
+  "code": 0,
+  "data": {
+    "fid": 494333522,
+    "nickname": "G\u03b9\u0273\u03b1",
+    "kid": 3063,
+    "stove_lv": 45,
+    "stove_lv_content": "https://gof-formal-avatar.akamaized.net/img/icon/stove_lv_3.png",
+    "avatar_image": "https://gof-formal-avatar.akamaized.net/avatar/2025/10/13/OwQgpB_1760395575.png",
+    "total_recharge_amount": 0
+  },
+  "msg": "success",
+  "err_code": ""
+}
+--------------------------------------------------
+2025-11-09 17:42:14,783 - 2025-11-09 17:42:14.783843 API REQ - Gift Code Redeem
+FID:494333522, Code:DCMilestone, Captcha:KYTD
+Resp Code: 200
+Response JSON:
+{
+  "code": 1,
+  "data": [],
+  "msg": "RECEIVED.",
+  "err_code": 40008
+}
+--------------------------------------------------
+2025-11-09 17:42:14,786 - DATABASE - Saved/Updated status for User 494333522, Code 'DCMilestone', Status RECEIVED
+
+2025-11-09 18:40:26,928 - 2025-11-09 18:40:26.928494 API REQUEST - Player Info
+Player ID: 431568630
+Response Code: 200
+Response JSON:
+{
+  "code": 0,
+  "data": {
+    "fid": 431568630,
+    "nickname": "M\u0336A\u0336G\u0336N\u0336U\u0336S\u0336",
+    "kid": 2756,
+    "stove_lv": 1,
+    "stove_lv_content": 1,
+    "avatar_image": "https://gof-formal-avatar.akamaized.net/avatar/2025/09/20/Qp46vY_1758384843.png",
+    "total_recharge_amount": 0
+  },
+  "msg": "success",
+  "err_code": ""
+}
+--------------------------------------------------
+2025-11-09 18:40:27,782 - 2025-11-09 18:40:27.781944 API REQ - Gift Code Redeem
+FID:431568630, Code:DCMilestone, Captcha:PCXZ
+Resp Code: 200
+Response JSON:
+{
+  "code": 0,
+  "data": [],
+  "msg": "SUCCESS",
+  "err_code": 20000
+}
+--------------------------------------------------
+2025-11-09 18:40:27,786 - DATABASE - Saved/Updated status for User 431568630, Code 'DCMilestone', Status SUCCESS
+

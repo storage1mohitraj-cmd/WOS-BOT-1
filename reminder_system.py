@@ -1,3 +1,28 @@
+"""Compatibility shim re-exporting reminder system implementation from cogs.reminder_system.
+
+This shim keeps existing imports working while the real implementation lives
+under `cogs/`. It re-exports the commonly used symbols.
+"""
+
+from cogs.reminder_system import (
+    ReminderSystem,
+    set_user_timezone,
+    get_user_timezone,
+    TimeParser,
+    REMINDER_IMAGES,
+    get_accurate_utc_time,
+    get_current_time_in_timezone,
+)
+
+__all__ = [
+    'ReminderSystem',
+    'set_user_timezone',
+    'get_user_timezone',
+    'TimeParser',
+    'REMINDER_IMAGES',
+    'get_accurate_utc_time',
+    'get_current_time_in_timezone',
+]
 import json
 import sqlite3
 import asyncio
@@ -12,7 +37,7 @@ import pytz
 import threading
 import os
 try:
-    from mongo_adapters import mongo_enabled, UserTimezonesAdapter
+    from db.mongo_adapters import mongo_enabled, UserTimezonesAdapter
 except Exception:
     # If adapters are not available at import time, functions will fall back to file-based storage
     mongo_enabled = lambda: False
@@ -925,7 +950,7 @@ class ReminderSystem:
         try:
             if os.getenv('MONGO_URI'):
                 try:
-                    from reminder_storage_mongo import ReminderStorageMongo
+                    from db.reminder_storage_mongo import ReminderStorageMongo
                     self.storage = ReminderStorageMongo()
                     logger.info('Using MongoDB for reminders storage')
                 except Exception as e:
@@ -1160,7 +1185,7 @@ class ReminderSystem:
         try:
             if os.getenv('MONGO_URI') and self.storage.__class__.__name__ != 'ReminderStorageMongo':
                 try:
-                    from reminder_storage_mongo import ReminderStorageMongo
+                    from db.reminder_storage_mongo import ReminderStorageMongo
                     self.storage = ReminderStorageMongo()
                     logger.info('Switched reminder storage to MongoDB at runtime')
                 except Exception as e:

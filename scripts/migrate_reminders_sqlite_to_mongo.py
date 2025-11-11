@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from mongo_client_wrapper import get_mongo_client
+from db.mongo_client_wrapper import get_mongo_client
 
 SQLITE_PATH = str(Path(__file__).resolve().parents[0] / '..' / 'reminders.db')
 DB_NAME = os.getenv('MONGO_DB_NAME', 'reminder_db')

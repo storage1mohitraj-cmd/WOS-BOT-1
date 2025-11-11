@@ -1,0 +1,34 @@
+--- 2025-11-09T20:38:39.491562Z ---
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\alliance.py", line 711, in on_interaction
+    await support_ops_cog.show_support_menu(interaction)
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\support_operations.py", line 27, in show_support_menu
+    await interaction.response.edit_message(embed=support_menu_embed, view=view)
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\interactions.py", line 1207, in edit_message
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\webhook\async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+
+
+--- 2025-11-09T20:38:39.505413Z ---
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\alliance.py", line 711, in on_interaction
+    await support_ops_cog.show_support_menu(interaction)
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\support_operations.py", line 27, in show_support_menu
+    await interaction.response.edit_message(embed=support_menu_embed, view=view)
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\interactions.py", line 1207, in edit_message
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\webhook\async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+
+

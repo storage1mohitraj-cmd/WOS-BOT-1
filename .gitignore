@@ -1,17 +1,8 @@
-.env
-cred.json
-.env.production
-__pycache__/
-creds.json
-.env
-.env
-cred.json
-.env
-cred.json
-.venv311/
-
-
-
-echo "__pycache__/" >> .gitignore
-echo "logs/" >> .gitignore
-echo ".venv311/" >> .gitignore
+__pycache__
+db
+db.bak
+log
+bot_token.txt
+version
+.python-version
+bot_venv

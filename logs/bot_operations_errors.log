@@ -1,0 +1,136 @@
+--- 2025-11-09T20:39:17.905969Z ---
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\bot_operations.py", line 1175, in show_bot_operations_menu
+    await interaction.response.edit_message(embed=embed, view=view)
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\interactions.py", line 1207, in edit_message
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\webhook\async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\alliance.py", line 620, in on_interaction
+    await bot_ops_cog.show_bot_operations_menu(interaction)
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\bot_operations.py", line 1181, in show_bot_operations_menu
+    await interaction.response.send_message(
+    ...<2 lines>...
+    )
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\interactions.py", line 1051, in send_message
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\webhook\async_.py", line 226, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+
+
+--- 2025-11-09T20:39:19.323544Z ---
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\bot_operations.py", line 1175, in show_bot_operations_menu
+    await interaction.response.edit_message(embed=embed, view=view)
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\interactions.py", line 1207, in edit_message
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\webhook\async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\alliance.py", line 620, in on_interaction
+    await bot_ops_cog.show_bot_operations_menu(interaction)
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\bot_operations.py", line 1181, in show_bot_operations_menu
+    await interaction.response.send_message(
+    ...<2 lines>...
+    )
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\interactions.py", line 1051, in send_message
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\webhook\async_.py", line 226, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+
+
+--- 2025-11-09T20:39:22.641004Z ---
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\bot_operations.py", line 1175, in show_bot_operations_menu
+    await interaction.response.edit_message(embed=embed, view=view)
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\interactions.py", line 1207, in edit_message
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\webhook\async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\alliance.py", line 620, in on_interaction
+    await bot_ops_cog.show_bot_operations_menu(interaction)
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\bot_operations.py", line 1181, in show_bot_operations_menu
+    await interaction.response.send_message(
+    ...<2 lines>...
+    )
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\interactions.py", line 1051, in send_message
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\webhook\async_.py", line 226, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+
+
+--- 2025-11-09T20:39:23.337697Z ---
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\bot_operations.py", line 1175, in show_bot_operations_menu
+    await interaction.response.edit_message(embed=embed, view=view)
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\interactions.py", line 1207, in edit_message
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\webhook\async_.py", line 224, in request
+    raise NotFound(response, data)
+discord.errors.NotFound: 404 Not Found (error code: 10062): Unknown interaction
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\alliance.py", line 620, in on_interaction
+    await bot_ops_cog.show_bot_operations_menu(interaction)
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\cogs\bot_operations.py", line 1181, in show_bot_operations_menu
+    await interaction.response.send_message(
+    ...<2 lines>...
+    )
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\interactions.py", line 1051, in send_message
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\bot_venv\Lib\site-packages\discord\webhook\async_.py", line 226, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+
+

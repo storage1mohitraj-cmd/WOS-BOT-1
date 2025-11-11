@@ -7,7 +7,7 @@ import os
 import json
 from pprint import pprint
 
-from mongo_client_wrapper import get_mongo_client
+from db.mongo_client_wrapper import get_mongo_client
 
 
 def main():

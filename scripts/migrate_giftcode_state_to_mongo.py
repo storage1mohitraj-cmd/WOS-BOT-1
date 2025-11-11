@@ -20,7 +20,7 @@ def main(dry_run: bool = True):
         data = json.load(f)
 
     sys.path.insert(0, str(ROOT))
-    from mongo_adapters import mongo_enabled, GiftcodeStateAdapter
+    from db.mongo_adapters import mongo_enabled, GiftcodeStateAdapter
 
     print(f"Found giftcode_state.json with keys: {list(data.keys())}")
     if not mongo_enabled() and not dry_run:

@@ -31,6 +31,157 @@ except Exception:
     # the current interpreter rather than failing to import the module.
     pass
 
+# --- Backport useful helpers from main.py so this single entrypoint
+#     (`app.py`) provides the same runtime conveniences (venv auto-create,
+#     update utilities, cleanup helpers) that `main.py` offered.
+import subprocess
+import shutil
+import stat
+
+def is_container() -> bool:
+    return os.path.exists("/.dockerenv") or os.path.exists("/var/run/secrets/kubernetes.io")
+
+def is_ci_environment() -> bool:
+    """Check if running in a CI environment"""
+    ci_indicators = [
+        'CI', 'CONTINUOUS_INTEGRATION', 'GITHUB_ACTIONS', 
+        'JENKINS_URL', 'TRAVIS', 'CIRCLECI', 'GITLAB_CI'
+    ]
+    return any(os.getenv(indicator) for indicator in ci_indicators)
+
+def should_skip_venv() -> bool:
+    """Check if venv should be skipped"""
+    return '--no-venv' in sys.argv or is_container() or is_ci_environment()
+
+# Handle bot_venv setup (legacy behavior from main.py). This tries to
+# create/run a repo-root venv named `bot_venv` when we're running under
+# the system Python and the user hasn't opted out. On Windows we print
+# instructions and exit so users can re-run with the venv Python; on
+# POSIX we attempt to re-exec into the venv Python automatically.
+try:
+    if sys.prefix == sys.base_prefix and not should_skip_venv():
+        venv_path = os.path.join(os.path.dirname(__file__), 'bot_venv')
+
+        if sys.platform == "win32":
+            venv_python_name = os.path.join(venv_path, "Scripts", "python.exe")
+            activate_script = os.path.join(venv_path, "Scripts", "activate.bat")
+        else:
+            venv_python_name = os.path.join(venv_path, "bin", "python")
+            activate_script = os.path.join(venv_path, "bin", "activate")
+
+        if not os.path.exists(venv_path):
+            try:
+                print("Attempting to create virtual environment 'bot_venv' automatically...")
+                subprocess.check_call([sys.executable, "-m", "venv", venv_path], timeout=300)
+                print(f"Virtual environment created at {venv_path}")
+
+                if sys.platform == "win32":
+                    print("\nVirtual environment created.")
+                    print("To continue, please run the script again with the venv Python:")
+                    print(f"  1. Ensure PowerShell or CMD is open in this directory: {os.getcwd()}")
+                    print(f"  2. Run: {venv_python_name} {os.path.basename(sys.argv[0])}")
+                    sys.exit(0)
+                else:
+                    # Relaunch under the venv Python on POSIX
+                    venv_python_executable = venv_python_name
+                    if os.path.exists(venv_python_executable):
+                        print("Restarting script in virtual environment...")
+                        os.execv(venv_python_executable, [venv_python_executable] + sys.argv)
+
+            except Exception as e:
+                print("Failed to create virtual environment automatically.")
+                print(f"Error: {e}")
+                print("Please create one manually with: python -m venv bot_venv")
+                sys.exit(1)
+        else:
+            # Venv exists but we're not running under it. On Windows instruct
+            # the user to run with the venv python; on POSIX try to re-exec.
+            if sys.platform == "win32":
+                print(f"Virtual environment at {venv_path} exists. Please run the script with the venv Python:")
+                print(f"  {venv_python_name} {os.path.basename(sys.argv[0])}")
+                sys.exit(0)
+            else:
+                venv_python_executable = venv_python_name
+                if os.path.exists(venv_python_executable):
+                    print(f"Using existing virtual environment at {venv_path}. Restarting...")
+                    os.execv(venv_python_executable, [venv_python_executable] + sys.argv)
+                else:
+                    print(f"Virtual environment at {venv_path} appears corrupted or incomplete.")
+                    sys.exit(1)
+except Exception:
+    # Best-effort: if anything fails here, continue under current interpreter.
+    pass
+
+def remove_readonly(func, path, _):
+    """Clear the readonly bit and reattempt the removal"""
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+def safe_remove(path, is_dir=None):
+    """
+    Safely remove a file or directory.
+    Clear the read-only bit on Windows.
+    """
+    if not os.path.exists(path):
+        return True
+    if is_dir is None:
+        is_dir = os.path.isdir(path)
+    try:
+        if is_dir:
+            if sys.platform == "win32":
+                shutil.rmtree(path, onexc=remove_readonly)
+            else:
+                shutil.rmtree(path)
+        else:
+            try:
+                os.remove(path)
+            except PermissionError:
+                if sys.platform == "win32":
+                    os.chmod(path, stat.S_IWRITE)
+                    os.remove(path)
+                else:
+                    raise
+        return True
+    except Exception:
+        return False
+
+def calculate_file_hash(filepath):
+    import hashlib
+    if not os.path.exists(filepath):
+        return None
+    sha256_hash = hashlib.sha256()
+    try:
+        with open(filepath, "rb") as f:
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()
+    except Exception:
+        return None
+
+def is_package_installed(package_name):
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "show", package_name],
+            capture_output=True, text=True, timeout=30
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+# Ensure requests is available (used by update helpers). If missing,
+# try to install it automatically — fall back to an informative error.
+try:
+    import requests
+except ImportError:
+    try:
+        print("Installing 'requests' package (required)...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"], timeout=300)
+        import requests
+    except Exception:
+        # If we cannot install, continue; update helpers will behave
+        # more conservatively when requests is missing.
+        requests = None
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -47,10 +198,127 @@ from reminder_system import ReminderSystem, set_user_timezone, get_user_timezone
 from event_tips import EVENT_TIPS, get_event_info
 from thinking_animation import ThinkingAnimation
 try:
-    from mongo_adapters import mongo_enabled, BirthdaysAdapter
+    from db.mongo_adapters import mongo_enabled, BirthdaysAdapter
 except Exception:
     mongo_enabled = lambda: False
     BirthdaysAdapter = None
+import sqlite3
+import os
+
+
+def ensure_db_tables():
+    """Create the minimal set of SQLite tables expected by BOT 2 and the
+    ported cogs. This is safe to call multiple times (uses IF NOT EXISTS).
+    """
+    db_dir = os.path.join(os.path.dirname(__file__), 'db')
+    try:
+        os.makedirs(db_dir, exist_ok=True)
+    except Exception:
+        pass
+
+    # Database file paths
+    paths = {
+        'alliance': os.path.join(db_dir, 'alliance.sqlite'),
+        'giftcode': os.path.join(db_dir, 'giftcode.sqlite'),
+        'changes': os.path.join(db_dir, 'changes.sqlite'),
+        'users': os.path.join(db_dir, 'users.sqlite'),
+        'settings': os.path.join(db_dir, 'settings.sqlite'),
+    }
+
+    # alliance DB
+    try:
+        conn = sqlite3.connect(paths['alliance'])
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS alliancesettings (
+            alliance_id INTEGER PRIMARY KEY,
+            channel_id INTEGER,
+            interval INTEGER
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS alliance_list (
+            alliance_id INTEGER PRIMARY KEY,
+            name TEXT
+        )''')
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+    # giftcode DB
+    try:
+        conn = sqlite3.connect(paths['giftcode'])
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS gift_codes (
+            giftcode TEXT PRIMARY KEY,
+            date TEXT
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS user_giftcodes (
+            fid INTEGER,
+            giftcode TEXT,
+            status TEXT,
+            PRIMARY KEY (fid, giftcode)
+        )''')
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+    # changes DB (legacy change logs)
+    try:
+        conn = sqlite3.connect(paths['changes'])
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS nickname_changes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fid INTEGER,
+            old_nickname TEXT,
+            new_nickname TEXT,
+            change_date TEXT
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS furnace_changes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fid INTEGER,
+            old_furnace_lv INTEGER,
+            new_furnace_lv INTEGER,
+            change_date TEXT
+        )''')
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+    # users DB
+    try:
+        conn = sqlite3.connect(paths['users'])
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS users (
+            fid INTEGER PRIMARY KEY,
+            nickname TEXT,
+            furnace_lv INTEGER DEFAULT 0,
+            kid INTEGER,
+            stove_lv_content TEXT,
+            alliance TEXT
+        )''')
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+    # settings DB (admin, botsettings)
+    try:
+        conn = sqlite3.connect(paths['settings'])
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS botsettings (
+            id INTEGER PRIMARY KEY,
+            channelid INTEGER,
+            giftcodestatus TEXT
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS admin (
+            id INTEGER PRIMARY KEY,
+            is_initial INTEGER
+        )''')
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
 import sys
 import signal
 import asyncio
@@ -998,6 +1266,92 @@ async def birthday(interaction: discord.Interaction):
             pass
 
 
+# /settings wrapper removed.
+# The `/settings` command is provided directly by the Alliance cog via
+# the @app_commands.command decorator in `alliance.py`. Removing the
+# local wrapper avoids duplicate registrations where both the cog and
+# a wrapper attempt to register `/settings`.
+
+
+@bot.tree.command(name="debug_list_commands", description="(Admin) List registered app commands and their scopes")
+@app_commands.default_permissions(administrator=True)
+async def debug_list_commands_wrapper(interaction: discord.Interaction):
+    """Admin helper to enumerate the bot.tree commands the bot currently has.
+
+    Use this from your dev guild to confirm whether `/settings` is registered
+    and where commands are scoped.
+    """
+    try:
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
+        infos = []
+        try:
+            if hasattr(bot.tree, 'get_commands'):
+                iterable = bot.tree.get_commands()
+            else:
+                iterable = bot.tree.walk_commands()
+        except Exception:
+            try:
+                iterable = bot.tree.walk_commands()
+            except Exception:
+                iterable = []
+
+        for c in iterable:
+            try:
+                name = getattr(c, 'name', str(c))
+                desc = getattr(c, 'description', '') or ''
+                gid = getattr(c, 'guild_id', None)
+                scope = str(gid) if gid else 'global'
+                infos.append(f"/{name} — {desc} — scope: {scope}")
+            except Exception:
+                continue
+
+        if not infos:
+            await interaction.followup.send("No app commands found.", ephemeral=True)
+            return
+
+        out = "\n".join(infos)
+        for i in range(0, len(out), 1800):
+            await interaction.followup.send(out[i:i+1800], ephemeral=True)
+    except Exception as e:
+        try:
+            await interaction.followup.send(f"Failed to list commands: {e}", ephemeral=True)
+        except Exception:
+            pass
+
+
+@bot.tree.command(name="debug_cogs", description="(Admin) List loaded cogs and extensions")
+@app_commands.default_permissions(administrator=True)
+async def debug_cogs_wrapper(interaction: discord.Interaction):
+    """Admin helper to enumerate loaded cogs and extensions."""
+    try:
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
+        cog_names = sorted(list(bot.cogs.keys())) if getattr(bot, 'cogs', None) else []
+        ext_names = sorted(list(bot.extensions.keys())) if getattr(bot, 'extensions', None) else []
+
+        out = f"Cogs: {', '.join(cog_names) or 'None'}\nExtensions: {', '.join(ext_names) or 'None'}"
+        for i in range(0, len(out), 1800):
+            await interaction.followup.send(out[i:i+1800], ephemeral=True)
+    except Exception as e:
+        try:
+            await interaction.followup.send(f"Failed to list cogs/extensions: {e}", ephemeral=True)
+        except Exception:
+            pass
+
+
+## `/load_alliance` admin helper removed — the Alliance cog should be loaded
+## at startup by the bot's normal extension-loading flow. Removing the on-
+## demand loader avoids partial backends and the "Settings backend not
+## loaded (Alliance cog missing)" user-facing message.
+
+
 # /birthday_setchannel removed — notification channel is read from the BIRTHDAY_NOTIFY_CHANNEL env var
 
 @bot.event
@@ -1204,6 +1558,19 @@ conversation_history = {}
 async def on_ready():
     try:
         logger.info(f'{bot.user} has connected to Discord!')
+        # Debug: list guilds the bot is currently in to help diagnose guild sync issues
+        try:
+            guild_list = [(g.id, getattr(g, 'name', 'Unknown')) for g in bot.guilds]
+            logger.info(f'Bot is currently a member of {len(guild_list)} guild(s): {guild_list}')
+        except Exception as guilds_err:
+            logger.debug(f'Could not enumerate bot.guilds: {guilds_err}')
+        # Ensure DB tables from BOT 2 exist (creates any missing tables so cogs don't fail)
+        try:
+            await bot.loop.run_in_executor(None, ensure_db_tables)
+            logger.info('Database tables verified/created')
+        except Exception as db_err:
+            logger.error(f'Failed to ensure DB tables: {db_err}')
+
         # Start lightweight health server so Render sees an open port (for uptime pings)
         global health_server_started
         if not health_server_started:
@@ -1239,6 +1606,36 @@ async def on_ready():
 
 
             
+            # Ensure important extensions are loaded before syncing commands.
+            # If the alliance cog is not loaded before sync, the top-level
+            # wrapper command may be registered while the cog backend is
+            # still absent which leads to "backend missing" at invocation.
+            try:
+                await bot.load_extension("cogs.alliance")
+                logger.info('Pre-loaded cogs.alliance extension before sync')
+            except Exception as pre_load_err:
+                logger.debug(f'Pre-load of cogs.alliance extension failed (continuing): {pre_load_err}')
+            try:
+                await bot.load_extension("cogs.gift_operations")
+                logger.info('Pre-loaded cogs.gift_operations extension before sync')
+            except Exception as pre_load_err:
+                logger.debug(f'Pre-load of cogs.gift_operations extension failed (continuing): {pre_load_err}')
+
+            # Pre-load playerinfo so its slash command is included in the
+            # initial centralized sync below (this matches how other
+            # important cogs are pre-loaded). Previously playerinfo performed
+            # its own per-cog sync; we now load it before the global sync so
+            # the command registers consistently.
+            try:
+                await bot.load_extension("cogs.playerinfo")
+                logger.info('Pre-loaded cogs.playerinfo extension before sync')
+            except Exception as pre_load_err:
+                logger.debug(f'Pre-load of cogs.playerinfo extension failed (continuing): {pre_load_err}')
+
+            # The /settings wrapper registration was removed. The Alliance
+            # cog registers `/settings` directly via its decorator. Keeping
+            # the cog-based registration prevents duplicate commands.
+
             # Force sync all commands after loading cog
             await bot.tree.sync()
             logger.info('Successfully synced global commands')
@@ -1252,10 +1649,20 @@ async def on_ready():
         if os.getenv('GUILD_ID'):
             guild_id = int(os.getenv('GUILD_ID'))
             guild = discord.Object(id=guild_id)
-            bot.tree.copy_global_to(guild=guild)
-            # Force sync commands to guild immediately
-            await bot.tree.sync(guild=guild)
-            logger.info(f'Synced commands to guild {guild_id}')
+            try:
+                bot.tree.copy_global_to(guild=guild)
+                # Force sync commands to guild immediately
+                await bot.tree.sync(guild=guild)
+                logger.info(f'Synced commands to guild {guild_id}')
+            except discord.Forbidden:
+                # Bot isn't present in the guild or lacks access — fall back to global sync
+                logger.warning(f"Missing access to guild {guild_id} when attempting guild sync. Falling back to global sync.")
+                await bot.tree.sync()
+                logger.info('Synced commands globally (fallback)')
+            except Exception as e:
+                logger.error(f'Guild sync to {guild_id} failed: {e}. Falling back to global sync.')
+                await bot.tree.sync()
+                logger.info('Synced commands globally (fallback)')
         else:
             # Global sync for production
             await bot.tree.sync()
@@ -1300,11 +1707,85 @@ async def on_ready():
             logger.debug(f"Failed to register existing persistent views on startup: {reg_err}")
 
         # Load playerinfo cog (if present in the same package) to register /playerinfo
+            try:
+                if 'cogs.playerinfo' not in bot.extensions:
+                    await bot.load_extension("cogs.playerinfo")
+                    logger.info('Loaded cogs.playerinfo extension')
+                else:
+                    logger.debug('cogs.playerinfo extension already loaded; skipping')
+            except Exception as pi_err:
+                # Surface load failures at ERROR so they appear in logs during debugging
+                logger.error(f"playerinfo extension not loaded or missing: {pi_err}")
+
+        # Load alliance and other_features cogs (if present) to register /settings and Other Features
         try:
-            await bot.load_extension("playerinfo")
-            logger.info('Loaded playerinfo extension')
-        except Exception as pi_err:
-            logger.debug(f"playerinfo extension not loaded or missing: {pi_err}")
+            if 'cogs.alliance' not in bot.extensions:
+                await bot.load_extension("cogs.alliance")
+                logger.info('Loaded cogs.alliance extension')
+            else:
+                logger.debug('cogs.alliance extension already loaded; skipping')
+        except Exception as a_err:
+            logger.error(f"cogs.alliance extension not loaded or missing: {a_err}")
+
+        try:
+            if 'cogs.other_features' not in bot.extensions:
+                await bot.load_extension("cogs.other_features")
+                logger.info('Loaded cogs.other_features extension')
+            else:
+                logger.debug('cogs.other_features extension already loaded; skipping')
+        except Exception as of_err:
+            logger.error(f"cogs.other_features extension not loaded or missing: {of_err}")
+
+        # Ensure the standard set of cogs are loaded (mirror main.py behavior).
+        try:
+            standard_cogs = [
+                "olddb", "control", "alliance", "alliance_member_operations",
+                "bot_operations", "logsystem", "support_operations", "gift_operations",
+                "changes", "w", "wel", "other_features", "bear_trap", "id_channel",
+                "backup_operations", "bear_trap_editor", "attendance", "attendance_report",
+                "minister_schedule", "minister_menu"
+            ]
+            failed_cogs = []
+            for cog in standard_cogs:
+                module_name = f"cogs.{cog}"
+                if module_name in bot.extensions:
+                    logger.debug(f"{module_name} already loaded; skipping")
+                    continue
+                try:
+                    await bot.load_extension(module_name)
+                    logger.info(f"Loaded {module_name}")
+                except Exception as e:
+                    logger.warning(f"Failed to load {module_name}: {e}")
+                    failed_cogs.append(cog)
+            if failed_cogs:
+                logger.warning(f"{len(failed_cogs)} cog(s) failed to load: {failed_cogs}")
+        except Exception as e:
+            logger.exception(f"Error during bulk cog loading: {e}")
+
+        # Emit a helpful listing of registered app commands so we can confirm /settings is present
+        try:
+            cmd_names = []
+            # prefer public API if available
+            if hasattr(bot.tree, 'get_commands'):
+                try:
+                    cmd_names = [c.name for c in bot.tree.get_commands()]
+                except Exception:
+                    # fallback to walking commands
+                    cmd_names = [getattr(c, 'name', repr(c)) for c in bot.tree.walk_commands()]
+            else:
+                # best-effort fallback for older/newer discord.py versions
+                try:
+                    cmd_names = [getattr(c, 'name', repr(c)) for c in bot.tree.walk_commands()]
+                except Exception:
+                    # internal storage fallback (private)
+                    if hasattr(bot.tree, '_commands'):
+                        try:
+                            cmd_names = [getattr(c, 'name', repr(c)) for c in list(bot.tree._commands.values())]
+                        except Exception:
+                            cmd_names = []
+            logger.info(f"Registered app commands: {cmd_names}")
+        except Exception as list_err:
+            logger.debug(f"Failed to list registered app commands: {list_err}")
 
         reminder_system.check_reminders.start()
 
@@ -2155,13 +2636,31 @@ async def storage_status(interaction: discord.Interaction):
             return
 
         cls_name = storage.__class__.__name__
+        # We'll build a list of lines and send a single response so we can append local DB file info
+        out_lines = []
         if cls_name == 'ReminderStorageMongo':
-            # Mongo storage exposes a collection attribute
+            # Mongo storage exposes a client and collection attribute
             try:
-                count = storage.col.count_documents({})
+                # Check connectivity with a quick ping
+                db_connected = False
+                ping_result = None
+                try:
+                    # This will raise if the server is unreachable
+                    ping_result = storage.client.admin.command('ping')
+                    db_connected = True
+                except Exception as e:
+                    ping_result = str(e)
+
+                try:
+                    count = storage.col.count_documents({})
+                except Exception as e:
+                    count = f"(error counting: {e})"
+
+                status = "connected" if db_connected else "not connected"
+                out_lines.append(f"Using MongoDB for reminders (DB {status}). Count: {count}. Ping: {ping_result}")
             except Exception as e:
-                count = f"(error counting: {e})"
-            await interaction.response.send_message(f"Using MongoDB for reminders. Count: {count}", ephemeral=True)
+                # Catch-all in case storage.client or storage.col access fails
+                out_lines.append(f"Using MongoDB for reminders but failed to check status: {e}")
         else:
             # Assume SQLite-backed ReminderStorage
             try:
@@ -2171,16 +2670,142 @@ async def storage_status(interaction: discord.Interaction):
                 from pathlib import Path
                 p = Path(path)
                 if not p.exists():
-                    await interaction.response.send_message(f"Using SQLite but DB not found at {p}", ephemeral=True)
-                    return
-                conn = sqlite3.connect(str(p))
-                cur = conn.cursor()
-                cur.execute('SELECT COUNT(*) FROM reminders')
-                c = cur.fetchone()[0]
-                conn.close()
-                await interaction.response.send_message(f"Using SQLite for reminders. Count: {c} at {p}", ephemeral=True)
+                    out_lines.append(f"Using SQLite but DB not found at {p}")
+                else:
+                    conn = sqlite3.connect(str(p))
+                    cur = conn.cursor()
+                    try:
+                        cur.execute('SELECT COUNT(*) FROM reminders')
+                        c = cur.fetchone()[0]
+                        out_lines.append(f"Using SQLite for reminders. Count: {c} at {p}")
+                    except Exception:
+                        out_lines.append(f"Using SQLite for reminders but 'reminders' table not found or read failed at {p}")
+                    finally:
+                        conn.close()
             except Exception as e:
-                await interaction.response.send_message(f"Using SQLite but failed to read DB: {e}", ephemeral=True)
+                out_lines.append(f"Using SQLite but failed to read DB: {e}")
+
+        # Additionally, scan the local `db/` folder and report basic info for .sqlite* files
+        try:
+            from pathlib import Path
+            import os
+            import sqlite3
+            from datetime import datetime
+
+            db_dir = Path(__file__).parent / 'db'
+            if db_dir.exists() and db_dir.is_dir():
+                files = sorted(db_dir.glob('**/*.sqlite*'))
+                if files:
+                    out_lines.append('Local DB files:')
+                    for f in files:
+                        try:
+                            st = f.stat()
+                            size = st.st_size
+                            mtime = datetime.fromtimestamp(st.st_mtime).isoformat()
+                            line = f" - {f.name}: size={size} bytes, mtime={mtime}"
+                            # If it's a regular .sqlite file, try a very small query to check integrity / row count for reminders
+                            if f.name.endswith('.sqlite'):
+                                try:
+                                    conn = sqlite3.connect(str(f), timeout=1)
+                                    cur = conn.cursor()
+                                    # check if reminders table exists
+                                    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='reminders'")
+                                    if cur.fetchone():
+                                        try:
+                                            cur.execute('SELECT COUNT(*) FROM reminders')
+                                            rc = cur.fetchone()[0]
+                                            line += f", reminders={rc} rows"
+                                        except Exception:
+                                            line += ", reminders=? (error reading)"
+                                    conn.close()
+                                except Exception:
+                                    line += ", sqlite read failed"
+                            out_lines.append(line)
+                        except Exception as e:
+                            out_lines.append(f" - {f.name}: stat failed ({e})")
+                else:
+                    out_lines.append('No local .sqlite files found under db/')
+            else:
+                out_lines.append('db/ directory not found')
+        except Exception as e:
+            out_lines.append(f'Failed to scan local db/ folder: {e}')
+
+        # Also report whether the Mongo adapters (used for timezones, other adapters)
+        # are enabled and reachable. This provides a clear "Mongo enabled/connected" line
+        # in the storage status output.
+        try:
+            try:
+                from db.mongo_adapters import mongo_enabled
+                mongo_ok = False
+                if mongo_enabled():
+                    try:
+                        from db.mongo_client_wrapper import get_mongo_client
+                        # Try a fast connection check (short timeout)
+                        try:
+                            client = get_mongo_client(connect_timeout_ms=2000)
+                            # ping to ensure server is responsive
+                            client.admin.command('ping')
+                            mongo_ok = True
+                        except Exception as e:
+                            mongo_ok = False
+                            mongo_err = str(e)
+                    except Exception as e:
+                        mongo_ok = False
+                        mongo_err = str(e)
+                    if mongo_ok:
+                        out_lines.insert(0, 'Mongo adapters: enabled and reachable')
+                    else:
+                        out_lines.insert(0, f'Mongo adapters: enabled but not reachable ({mongo_err})')
+                else:
+                    out_lines.insert(0, 'Mongo adapters: disabled (no MONGO_URI)')
+            except Exception as e:
+                out_lines.insert(0, f'Mongo adapters: check failed ({e})')
+        except Exception:
+            # Don't allow the mongo check to break the whole command
+            pass
+
+        # Build an embed for nicer formatting and send it
+        try:
+            summary_lines = [l for l in out_lines if not l.startswith(' - ') and l != 'Local DB files:']
+            file_lines = []
+            seen_files_header = False
+            for l in out_lines:
+                if l == 'Local DB files:':
+                    seen_files_header = True
+                    continue
+                if seen_files_header or l.startswith(' - '):
+                    file_lines.append(l)
+
+            summary = '\n'.join(summary_lines) if summary_lines else 'No status available'
+            files_text = '\n'.join(file_lines) if file_lines else 'No local DB files found'
+
+            # Truncate files_text to fit embed field limits
+            max_len = 900
+            if len(files_text) > max_len:
+                files_text = files_text[:max_len] + '\n... (truncated)'
+
+            # Choose color based on whether any "not connected" appears
+            color = discord.Color.green()
+            if 'not connected' in summary.lower() or 'failed' in summary.lower() or 'error' in summary.lower():
+                color = discord.Color.red()
+
+            embed = discord.Embed(title='Storage status', color=color)
+            embed.add_field(name='Summary', value=summary, inline=False)
+            embed.add_field(name='Local DB files', value=files_text, inline=False)
+
+            try:
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+            except Exception:
+                await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            # As a last resort, send plain text
+            try:
+                await interaction.response.send_message('\n'.join(out_lines), ephemeral=True)
+            except Exception:
+                try:
+                    await interaction.followup.send('\n'.join(out_lines), ephemeral=True)
+                except Exception as ex:
+                    logger.error('Failed to send storage_status response: %s / %s', e, ex)
 
     except Exception as e:
         try:
@@ -3145,71 +3770,76 @@ async def help_command(interaction: discord.Interaction):
     )
     embed.set_thumbnail(url="https://i.postimg.cc/Fzq03CJf/a463d7c7-7fc7-47fc-b24d-1324383ee2ff-removebg-preview.png")
     embed.set_footer(text="Type a command to get started!")
-    # Add a feedback button under the help embed
+
     class FeedbackModal(discord.ui.Modal, title="Your Feedback"):
-        feedback = discord.ui.TextInput(label="Your feedback", style=discord.TextStyle.long, placeholder="Share your feedback or a bug report...", required=True, max_length=2000)
+        feedback = discord.ui.TextInput(
+            label="Your feedback",
+            style=discord.TextStyle.long,
+            placeholder="Share your feedback or a bug report...",
+            required=True,
+            max_length=2000,
+        )
 
         async def on_submit(self, modal_interaction: discord.Interaction):
-                # Try to send feedback to configured feedback channel and always also attempt to DM the bot owner
+            try:
+                feedback_text = self.feedback.value
+                posted_channel = False
+                posted_owner = False
+
+                # Prefer persisted feedback channel or environment variable
+                feedback_channel_id = get_feedback_channel_id()
+                if feedback_channel_id:
+                    try:
+                        ch = modal_interaction.client.get_channel(int(feedback_channel_id))
+                        if ch:
+                            await ch.send(f"**Feedback from** {modal_interaction.user} (ID: {modal_interaction.user.id}):\n{feedback_text}")
+                            posted_channel = True
+                    except Exception as e:
+                        logger.error(f"Failed to post feedback to channel: {e}")
+
+                # Always attempt to DM the configured bot owner (if set)
+                owner_id = os.getenv('BOT_OWNER_ID')
+                if owner_id:
+                    try:
+                        owner = modal_interaction.client.get_user(int(owner_id))
+                        if owner is None:
+                            try:
+                                owner = await modal_interaction.client.fetch_user(int(owner_id))
+                            except Exception as e:
+                                logger.error(f"Failed to fetch owner user object: {e}")
+
+                        if owner:
+                            try:
+                                await owner.send(f"**Feedback from** {modal_interaction.user} (ID: {modal_interaction.user.id}):\n{feedback_text}")
+                                posted_owner = True
+                            except Exception as e:
+                                logger.error(f"Failed to DM owner with feedback: {e}")
+                                # fallback: if we have a feedback channel, post there as an alert
+                                if feedback_channel_id and not posted_channel:
+                                    try:
+                                        ch = modal_interaction.client.get_channel(int(feedback_channel_id))
+                                        if ch:
+                                            await ch.send(f"⚠️ Could not DM configured owner (ID: {owner_id}). Feedback from {modal_interaction.user} (ID: {modal_interaction.user.id}):\n{feedback_text}")
+                                            posted_channel = True
+                                    except Exception as e2:
+                                        logger.error(f"Failed to post fallback notification to feedback channel: {e2}")
+                    except Exception as e:
+                        logger.error(f"Unexpected error while trying to deliver feedback to owner: {e}")
+
+                # Persist the feedback to disk for audit/backup
                 try:
-                    feedback_text = self.feedback.value
-                    posted_channel = False
-                    posted_owner = False
+                    append_feedback_log(modal_interaction.user, modal_interaction.user.id, feedback_text, posted_channel=posted_channel, posted_owner=posted_owner)
+                except Exception:
+                    logger.exception("Failed to append feedback to log file")
 
-                    # Prefer persisted feedback channel or environment variable
-                    feedback_channel_id = get_feedback_channel_id()
-                    if feedback_channel_id:
-                        try:
-                            ch = modal_interaction.client.get_channel(int(feedback_channel_id))
-                            if ch:
-                                await ch.send(f"**Feedback from** {modal_interaction.user} (ID: {modal_interaction.user.id}):\n{feedback_text}")
-                                posted_channel = True
-                        except Exception as e:
-                            logger.error(f"Failed to post feedback to channel: {e}")
-
-                    # Always attempt to DM the configured bot owner (if set)
-                    owner_id = os.getenv('BOT_OWNER_ID')
-                    if owner_id:
-                        try:
-                            owner = modal_interaction.client.get_user(int(owner_id))
-                            if owner is None:
-                                try:
-                                    owner = await modal_interaction.client.fetch_user(int(owner_id))
-                                except Exception as e:
-                                    logger.error(f"Failed to fetch owner user object: {e}")
-
-                            if owner:
-                                try:
-                                    await owner.send(f"**Feedback from** {modal_interaction.user} (ID: {modal_interaction.user.id}):\n{feedback_text}")
-                                    posted_owner = True
-                                except Exception as e:
-                                    logger.error(f"Failed to DM owner with feedback: {e}")
-                                    # fallback: if we have a feedback channel, post there as an alert
-                                    if feedback_channel_id and not posted_channel:
-                                        try:
-                                            ch = modal_interaction.client.get_channel(int(feedback_channel_id))
-                                            if ch:
-                                                await ch.send(f"⚠️ Could not DM configured owner (ID: {owner_id}). Feedback from {modal_interaction.user} (ID: {modal_interaction.user.id}):\n{feedback_text}")
-                                                posted_channel = True
-                                        except Exception as e2:
-                                            logger.error(f"Failed to post fallback notification to feedback channel: {e2}")
-                        except Exception as e:
-                            logger.error(f"Unexpected error while trying to deliver feedback to owner: {e}")
-
-                    # Persist the feedback to disk for audit/backup
-                    try:
-                        append_feedback_log(modal_interaction.user, modal_interaction.user.id, feedback_text, posted_channel=posted_channel, posted_owner=posted_owner)
-                    except Exception:
-                        logger.exception("Failed to append feedback to log file")
-
-                    posted = posted_channel or posted_owner
-                    logger.info(f"Received feedback from {modal_interaction.user} (posted_channel={posted_channel}, posted_owner={posted_owner})")
-                    try:
-                        await modal_interaction.response.send_message("Thanks — your feedback has been submitted.", ephemeral=True)
-                    except Exception:
-                        logger.debug("Could not send ephemeral confirmation for feedback")
-                except Exception as e:
-                    logger.error(f"Error handling feedback modal submit: {e}")
+                posted = posted_channel or posted_owner
+                logger.info(f"Received feedback from {modal_interaction.user} (posted_channel={posted_channel}, posted_owner={posted_owner})")
+                try:
+                    await modal_interaction.response.send_message("Thanks — your feedback has been submitted.", ephemeral=True)
+                except Exception:
+                    logger.debug("Could not send ephemeral confirmation for feedback")
+            except Exception as e:
+                logger.error(f"Error handling feedback modal submit: {e}")
 
     class HelpView(discord.ui.View):
         def __init__(self):
@@ -3832,6 +4462,299 @@ async def register_view(interaction: discord.Interaction, channel: discord.TextC
 
 import sys, traceback, time
 
+# --- Update / repair / dependency helpers ported from main.py ---
+LEGACY_PACKAGES_TO_REMOVE = [
+    "ddddocr",
+    "easyocr",
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "opencv-python",
+    "opencv-python-headless",
+]
+
+UPDATE_SOURCES = [
+    {
+        "name": "GitHub",
+        "api_url": "https://api.github.com/repos/whiteout-project/bot/releases/latest",
+        "primary": True
+    },
+    {
+        "name": "GitLab",
+        "api_url": "https://gitlab.whiteout-bot.com/api/v4/projects/1/releases",
+        "project_id": 1,
+        "primary": False
+    }
+]
+
+def get_latest_release_info(beta_mode=False):
+    """Try to get latest release info from multiple sources."""
+    if requests is None:
+        print("Update check skipped: requests package not available.")
+        return None
+
+    for source in UPDATE_SOURCES:
+        try:
+            print(f"Checking for updates from {source['name']}...")
+
+            if source['name'] == "GitHub":
+                if beta_mode:
+                    repo_name = source['api_url'].split('/repos/')[1].split('/releases')[0]
+                    branch_url = f"https://api.github.com/repos/{repo_name}/branches/main"
+                    response = requests.get(branch_url, timeout=30)
+                    if response.status_code == 200:
+                        data = response.json()
+                        commit_sha = data['commit']['sha'][:7]
+                        return {
+                            "tag_name": f"beta-{commit_sha}",
+                            "body": f"Latest development version from main branch (commit: {commit_sha})",
+                            "download_url": f"https://github.com/{repo_name}/archive/refs/heads/main.zip",
+                            "source": f"{source['name']} (Beta)"
+                        }
+                else:
+                    response = requests.get(source['api_url'], timeout=30)
+                    if response.status_code == 200:
+                        data = response.json()
+                        repo_name = source['api_url'].split('/repos/')[1].split('/releases')[0]
+                        download_url = f"https://github.com/{repo_name}/archive/refs/tags/{data['tag_name']}.zip"
+                        return {
+                            "tag_name": data["tag_name"],
+                            "body": data.get("body", ""),
+                            "download_url": download_url,
+                            "source": source['name']
+                        }
+
+            elif source['name'] == "GitLab":
+                response = requests.get(source['api_url'], timeout=30)
+                if response.status_code == 200:
+                    releases = response.json()
+                    if releases:
+                        latest = releases[0]
+                        tag_name = latest['tag_name']
+                        download_url = f"https://gitlab.whiteout-bot.com/whiteout-project/bot/-/archive/{tag_name}/bot-{tag_name}.zip"
+                        return {
+                            "tag_name": tag_name,
+                            "body": latest.get("description", "No release notes available"),
+                            "download_url": download_url,
+                            "source": source['name']
+                        }
+
+        except requests.exceptions.RequestException as e:
+            print(f"{source['name']} connection failed: {e}")
+            continue
+        except Exception as e:
+            print(f"Failed to check {source['name']}: {e}")
+            continue
+
+    print("All update sources failed")
+    return None
+
+def check_and_install_requirements():
+    if not os.path.exists("requirements.txt"):
+        print("No requirements.txt found")
+        return False
+    with open("requirements.txt", "r") as f:
+        requirements = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+
+    missing_packages = []
+    for requirement in requirements:
+        package_name = requirement.split("==")[0].split(">=")[0].split("<=")[0].split("~=")[0].split("!=")[0]
+        try:
+            __import__(package_name)
+        except Exception:
+            missing_packages.append(requirement)
+
+    if missing_packages:
+        print(f"Installing {len(missing_packages)} missing packages...")
+        for package in missing_packages:
+            try:
+                cmd = [sys.executable, "-m", "pip", "install", package, "--no-cache-dir"]
+                subprocess.check_call(cmd, timeout=1200)
+                print(f"Installed {package}")
+            except Exception as e:
+                print(f"Failed to install {package}: {e}")
+                return False
+    print("All requirements satisfied")
+    return True
+
+def has_obsolete_requirements():
+    """
+    Check if requirements.txt contains obsolete packages from older versions.
+    Required to fix bug with v1.2.0 upgrade logic that deleted new requirements.txt.
+    """
+    if not os.path.exists("requirements.txt"):
+        return False
+    try:
+        with open("requirements.txt", "r") as f:
+            content = f.read().lower()
+        for package in LEGACY_PACKAGES_TO_REMOVE:
+            if package.lower() in content:
+                return True
+        return False
+    except Exception as e:
+        print(f"Error checking requirements.txt: {e}")
+        return False
+
+def setup_dependencies(beta_mode=False):
+    print("\nChecking dependencies...")
+    removed_obsolete = False
+    if has_obsolete_requirements():
+        print("! Warning: requirements.txt contains obsolete packages from older version")
+        removed_obsolete = True
+        try:
+            os.remove("requirements.txt")
+        except Exception:
+            pass
+
+    if not os.path.exists("requirements.txt"):
+        if not removed_obsolete:
+            print("! Warning: requirements.txt not found")
+        if not download_requirements_from_release(beta_mode=beta_mode):
+            print("✗ Could not download requirements.txt")
+            return False
+
+    if not check_and_install_requirements():
+        print("✗ Failed to install requirements")
+        return False
+    return True
+
+def startup_cleanup():
+    v1_path = "V1oldbot"
+    if os.path.exists(v1_path):
+        safe_remove(v1_path)
+    v2_path = "V2Old"
+    if os.path.exists(v2_path):
+        safe_remove(v2_path)
+    pictures_path = "pictures"
+    if os.path.exists(pictures_path):
+        safe_remove(pictures_path)
+    txt_path = "autoupdateinfo.txt"
+    if os.path.exists(txt_path):
+        safe_remove(txt_path, is_dir=False)
+    legacy_packages = [p for p in LEGACY_PACKAGES_TO_REMOVE if is_package_installed(p)]
+    if legacy_packages:
+        uninstall_packages(legacy_packages, " (legacy packages)")
+
+def restart_bot():
+    python = sys.executable
+    script_path = os.path.abspath(sys.argv[0])
+    filtered_args = [arg for arg in sys.argv[1:] if arg not in ["--no-venv", "--repair"]]
+    args = [python, script_path] + filtered_args
+    if sys.platform == "win32":
+        print("Please restart the bot manually with the venv python if needed.")
+        sys.exit(0)
+    else:
+        try:
+            subprocess.Popen(args)
+            os._exit(0)
+        except Exception:
+            os.execl(python, python, script_path, *sys.argv[1:])
+
+def install_packages(requirements_txt_path: str, debug: bool = False) -> bool:
+    full_command = [sys.executable, "-m", "pip", "install", "-r", requirements_txt_path, "--no-cache-dir"]
+    try:
+        subprocess.check_call(full_command, timeout=1200)
+        return True
+    except Exception as e:
+        print(f"Failed to install packages: {e}")
+        return False
+
+async def check_and_update_files():
+    beta_mode = "--beta" in sys.argv
+    repair_mode = "--repair" in sys.argv
+    release_info = get_latest_release_info(beta_mode=beta_mode)
+    if not release_info:
+        print("No release info available")
+        return
+    latest_tag = release_info["tag_name"]
+    source_name = release_info.get("source", "Unknown")
+    current_version = "v0.0.0"
+    if os.path.exists("version"):
+        with open("version", "r") as f:
+            current_version = f.read().strip()
+    if current_version != latest_tag or repair_mode:
+        update = False
+        if is_container():
+            update = True
+        else:
+            if "--autoupdate" in sys.argv or repair_mode:
+                update = True
+            else:
+                ask = input("Do you want to update? (y/n): ").strip().lower()
+                update = ask == "y"
+
+        if update:
+            download_url = release_info.get("download_url")
+            if not download_url:
+                print("No download URL for update")
+                return
+            safe_remove("package.zip")
+            resp = requests.get(download_url, timeout=600)
+            if resp.status_code == 200:
+                with open("package.zip", "wb") as f:
+                    f.write(resp.content)
+                try:
+                    shutil.unpack_archive("package.zip", "update", "zip")
+                except Exception as e:
+                    print(f"Failed to extract update: {e}")
+                    return
+                # Copy files from update into place (skip certain files)
+                update_dir = "update"
+                extracted_items = os.listdir(update_dir)
+                if len(extracted_items) == 1 and os.path.isdir(os.path.join(update_dir, extracted_items[0])):
+                    update_dir = os.path.join(update_dir, extracted_items[0])
+
+                requirements_path = os.path.join(update_dir, "requirements.txt")
+                if os.path.exists(requirements_path):
+                    success = install_packages(requirements_path)
+                    if success:
+                        try:
+                            if os.path.exists("requirements.txt"):
+                                safe_remove("requirements.txt", is_dir=False)
+                            shutil.copy2(requirements_path, "requirements.txt")
+                        except Exception:
+                            pass
+
+                for root, _, files in os.walk(update_dir):
+                    for file in files:
+                        if file == "main.py":
+                            continue
+                        src_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(src_path, update_dir)
+                        dst_path = os.path.join(".", rel_path)
+                        if file in ["bot_token.txt", "version"] or dst_path.startswith("db/"):
+                            continue
+                        os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+                        try:
+                            shutil.copy2(src_path, dst_path)
+                        except Exception as e:
+                            print(f"Failed to copy {file}: {e}")
+
+                safe_remove("package.zip")
+                safe_remove("update")
+                with open("version", "w") as f:
+                    f.write(latest_tag)
+                restart_bot()
+
+# --- End of update/repair helpers ---
+
+# Run dependency/setup/update flow before starting bot when invoked as script
+if __name__ == "__main__":
+    beta_mode = "--beta" in sys.argv
+    if not setup_dependencies(beta_mode=beta_mode):
+        print("Warning: Dependency setup incomplete. Proceeding may fail.")
+    try:
+        startup_cleanup()
+    except Exception:
+        pass
+    # Check for updates/repair unless explicitly skipped
+    if "--no-update" not in sys.argv:
+        try:
+            import asyncio as _asyncio
+            _asyncio.run(check_and_update_files())
+        except Exception:
+            pass
+
 try:
     bot.run(TOKEN)
 except BaseException as e:
@@ -3844,3 +4767,4 @@ except BaseException as e:
         time.sleep(1)
     # re-raise to preserve original behavior after inspection
     raise
+

@@ -1,0 +1,30 @@
+2025-11-09 15:40:24,552 - Looking for ONNX model at: F:\BOT 2\models\captcha_model.onnx
+2025-11-09 15:40:24,552 - Looking for metadata at: F:\BOT 2\models\captcha_model_metadata.json
+2025-11-09 15:40:24,552 - Loading ONNX model...
+2025-11-09 15:40:24,603 - Loading model metadata...
+2025-11-09 15:40:24,604 - Performing test inference...
+2025-11-09 15:40:25,124 - ONNX model test successful. Model ready for captcha solving.
+2025-11-09 15:41:31,314 - [Solver] FID 244886619, Attempt 1: ONNX raw result='MFDF' (confidence: 11.669, 0.179s)
+2025-11-09 15:41:31,314 - [Solver] FID 244886619, Attempt 1: Success. Solved: MFDF
+2025-11-09 15:41:34,783 - [Solver] FID 244886619, Attempt 1: ONNX raw result='E8AY' (confidence: 21.780, 0.029s)
+2025-11-09 15:41:34,786 - [Solver] FID 244886619, Attempt 1: Success. Solved: E8AY
+2025-11-09 15:41:38,007 - [Solver] FID 244886619, Attempt 1: ONNX raw result='TZN4' (confidence: 15.262, 0.027s)
+2025-11-09 15:41:38,008 - [Solver] FID 244886619, Attempt 1: Success. Solved: TZN4
+2025-11-09 15:48:06,944 - [Solver] FID 494333522, Attempt 1: ONNX raw result='97HR' (confidence: 16.924, 0.031s)
+2025-11-09 15:48:06,944 - [Solver] FID 494333522, Attempt 1: Success. Solved: 97HR
+2025-11-09 15:48:10,285 - [Solver] FID 494333522, Attempt 2: ONNX raw result='E99K' (confidence: 4.172, 0.088s)
+2025-11-09 15:48:10,286 - [Solver] FID 494333522, Attempt 2: Success. Solved: E99K
+2025-11-09 15:48:12,624 - [Solver] FID 494333522, Attempt 3: ONNX raw result='J8SX' (confidence: 15.095, 0.031s)
+2025-11-09 15:48:12,624 - [Solver] FID 494333522, Attempt 3: Success. Solved: J8SX
+2025-11-09 17:41:12,665 - [Solver] FID 494333522, Attempt 1: ONNX raw result='S2EJ' (confidence: 11.360, 0.103s)
+2025-11-09 17:41:12,665 - [Solver] FID 494333522, Attempt 1: Success. Solved: S2EJ
+2025-11-09 17:42:14,462 - [Solver] FID 494333522, Attempt 1: ONNX raw result='KYTD' (confidence: 9.749, 0.023s)
+2025-11-09 17:42:14,463 - [Solver] FID 494333522, Attempt 1: Success. Solved: KYTD
+2025-11-09 18:31:50,466 - Looking for ONNX model at: F:\STARK-whiteout survival bot\BOT 2\models\captcha_model.onnx
+2025-11-09 18:31:50,466 - Looking for metadata at: F:\STARK-whiteout survival bot\BOT 2\models\captcha_model_metadata.json
+2025-11-09 18:31:50,466 - Loading ONNX model...
+2025-11-09 18:31:50,539 - Loading model metadata...
+2025-11-09 18:31:50,539 - Performing test inference...
+2025-11-09 18:31:50,880 - ONNX model test successful. Model ready for captcha solving.
+2025-11-09 18:40:27,441 - [Solver] FID 431568630, Attempt 1: ONNX raw result='PCXZ' (confidence: 16.266, 0.196s)
+2025-11-09 18:40:27,441 - [Solver] FID 431568630, Attempt 1: Success. Solved: PCXZ

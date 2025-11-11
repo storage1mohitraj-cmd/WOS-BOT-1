@@ -24,7 +24,7 @@ except Exception:
     # python-dotenv may not be available; tests will rely on environment variables instead
     pass
 
-from mongo_client_wrapper import get_mongo_client
+from db.mongo_client_wrapper import get_mongo_client
 
 
 def main():

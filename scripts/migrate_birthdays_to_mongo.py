@@ -20,7 +20,7 @@ def main(dry_run: bool = True):
         data = json.load(f)
 
     sys.path.insert(0, str(ROOT))
-    from mongo_adapters import mongo_enabled, BirthdaysAdapter
+    from db.mongo_adapters import mongo_enabled, BirthdaysAdapter
 
     print(f"Found {len(data)} birthday entries in {FILE}")
     if not mongo_enabled() and not dry_run:
