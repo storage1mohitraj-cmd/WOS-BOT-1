@@ -188,6 +188,23 @@ except ImportError:
 # before executing `app.py`. Try to import and, if missing, install the
 # maintained `discord.py` package (the project expects `discord` module
 # provided by `discord.py` or compatible forks).
+# Debug: emit early runtime info to help troubleshoot missing-package failures
+try:
+    print("--- STARTUP DEBUG ---")
+    print(f"cwd={os.getcwd()}")
+    print(f"sys.executable={sys.executable}")
+    print(f"python_version={sys.version}")
+    print(f"sys.path={sys.path}")
+    try:
+        print("/app exists:", os.path.exists('/app'))
+        print("/app listing:", os.listdir('/app')[:50])
+    except Exception:
+        print("Could not list /app")
+    print("requirements present:", os.path.exists('/app/requirements.txt'))
+    print("subfolder requirements present:", os.path.exists('/app/DISCORD BOT/requirements.txt'))
+    print("--- END STARTUP DEBUG ---")
+except Exception:
+    pass
 try:
     import discord
 except ImportError:
