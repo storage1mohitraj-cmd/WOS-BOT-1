@@ -205,62 +205,139 @@ try:
     print("--- END STARTUP DEBUG ---")
 except Exception:
     pass
-try:
-    import discord
-except ImportError:
-    try:
-        print("Installing 'discord.py' package (required)...")
-        import subprocess
-        subprocess.check_call([
-            sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall", "discord.py>=2.5.2"
-        ], timeout=600, env=dict(os.environ, PIP_NO_CACHE_DIR="1"))
-        # Reload sys.modules to ensure fresh import
-        import sys
-        if 'discord' in sys.modules:
-            del sys.modules['discord']
-        import importlib
-        importlib.invalidate_caches()
-        # Re-exec the import
-        import discord
-        print("✓ discord.py installed successfully")
-    except Exception as install_err:
-        # Try fallback: install from local requirements files if present
-        print(f"Warning: failed to install discord.py directly: {install_err}")
-        tried_reqs = False
-        try:
-            req_paths = [
-                "/app/requirements.txt",
-                os.path.join(os.path.dirname(__file__), "requirements.txt"),
-                "/app/DISCORD BOT/requirements.txt",
-                os.path.join(os.path.dirname(__file__), "DISCORD BOT", "requirements.txt"),
-            ]
-            for rp in req_paths:
-                try:
-                    if rp and os.path.exists(rp):
-                        print(f"Attempting to install from requirements file: {rp}")
-                        subprocess.check_call([
-                            sys.executable, "-m", "pip", "install", "--upgrade", "-r", rp
-                        ], timeout=1200, env=dict(os.environ, PIP_NO_CACHE_DIR="1"))
-                        tried_reqs = True
-                        break
-                except Exception as req_err:
-                    print(f"Attempt to install from {rp} failed: {req_err}")
-        except Exception as e:
-            print(f"Error while searching/installing requirements fallback: {e}")
-
-        if tried_reqs:
+def _install_all_requirements_once():
+    """
+    Install ALL requirements from requirements.txt in one go.
+    This is much more reliable than installing individual packages.
+    Returns True if successful, False otherwise.
+    """
+    req_paths = [
+        "/app/requirements.txt",
+        os.path.join(os.path.dirname(__file__), "requirements.txt"),
+        "/app/DISCORD BOT/requirements.txt",
+        os.path.join(os.path.dirname(__file__), "DISCORD BOT", "requirements.txt"),
+    ]
+    
+    for req_path in req_paths:
+        if os.path.exists(req_path):
             try:
-                if 'discord' in sys.modules:
-                    del sys.modules['discord']
-                importlib.invalidate_caches()
-                import discord
-                print("✓ discord.py installed via requirements.txt")
-            except Exception as final_err:
-                print(f"FATAL: discord still missing after requirements fallback: {final_err}")
-                raise
+                print(f"[INIT] Installing all dependencies from: {req_path}")
+                print(f"[INIT] This may take a few minutes on first run...")
+                # Install with timeout of 30 minutes for large installs
+                subprocess.check_call([
+                    sys.executable, "-m", "pip", "install", 
+                    "--quiet",  # Reduce noise
+                    "--upgrade", 
+                    "-r", req_path
+                ], timeout=1800, env=dict(os.environ, PIP_NO_CACHE_DIR="1"))
+                
+                print(f"[INIT] [OK] Dependencies installed successfully")
+                return True
+            except subprocess.TimeoutExpired:
+                print(f"[ERROR] Installation timed out (took >30 mins)")
+                return False
+            except subprocess.CalledProcessError as e:
+                print(f"[ERROR] Installation failed: {e}")
+                # Don't give up yet, try next path
+                continue
+            except Exception as e:
+                print(f"[ERROR] Unexpected error during install: {e}")
+                continue
+    
+    return False
+
+def _refresh_module_cache():
+    """
+    Refresh the Python module search path after pip install.
+    This is critical for packages to be found immediately after installation.
+    """
+    import importlib
+    import site
+    
+    # Clear the import cache
+    importlib.invalidate_caches()
+    
+    # Reload the site module to update sys.path
+    if hasattr(site, 'getsitepackages'):
+        importlib.reload(site)
+    
+    # Add site-packages to sys.path if not already there
+    site_packages = [p for p in site.getsitepackages() if 'site-packages' in p]
+    for sp in site_packages:
+        if sp not in sys.path:
+            sys.path.insert(0, sp)
+    
+    # Also handle venv site-packages
+    venv_site = os.path.join(sys.prefix, 'lib', 'site-packages')
+    if os.path.exists(venv_site) and venv_site not in sys.path:
+        sys.path.insert(0, venv_site)
+    
+    # Windows venv site-packages
+    venv_site_win = os.path.join(sys.prefix, 'Lib', 'site-packages')
+    if os.path.exists(venv_site_win) and venv_site_win not in sys.path:
+        sys.path.insert(0, venv_site_win)
+
+# CRITICAL: Install all dependencies FIRST before any imports
+print("[INIT] Discord Bot Startup - Initializing...")
+print(f"[INIT] Python: {sys.version}")
+print(f"[INIT] Executable: {sys.executable}")
+
+try:
+    # Check if any critical module is missing
+    critical_imports = ['discord', 'dotenv', 'aiohttp', 'PIL', 'pymongo', 'bs4']
+    missing = []
+    for mod in critical_imports:
+        try:
+            __import__(mod)
+        except ImportError:
+            missing.append(mod)
+    
+    if missing:
+        print(f"[INIT] Missing modules detected: {', '.join(missing)}")
+        print(f"[INIT] Installing dependencies...")
+        
+        if not _install_all_requirements_once():
+            print("[ERROR] Failed to install requirements")
+            print("[ERROR] Attempting workaround...")
+            # Try to install the most critical ones individually as last resort
+            critical_packages = ["discord.py", "python-dotenv", "aiohttp", "pillow", "pymongo"]
+            for pkg in critical_packages:
+                try:
+                    subprocess.check_call([
+                        sys.executable, "-m", "pip", "install", "--upgrade", "--quiet", pkg
+                    ], timeout=600, env=dict(os.environ, PIP_NO_CACHE_DIR="1"))
+                except Exception as e:
+                    print(f"[WARN] Could not install {pkg}: {e}")
+        
+        # Refresh module cache after installation
+        print("[INIT] Refreshing module cache...")
+        _refresh_module_cache()
+    else:
+        print("[INIT] All critical dependencies already installed")
+
+except Exception as e:
+    print(f"[ERROR] During dependency check: {e}")
+    import traceback
+    traceback.print_exc()
+
+# Final verification - Import critical modules
+print("[INIT] Verifying imports...")
+import time
+max_wait = 5
+waited = 0
+while waited < max_wait:
+    try:
+        import discord
+        print("[INIT] [OK] discord.py loaded")
+        break
+    except ImportError:
+        waited += 1
+        if waited < max_wait:
+            print(f"[INIT] Retrying discord import ({waited}/{max_wait})...")
+            _refresh_module_cache()
+            time.sleep(1)
         else:
-            # No requirements file found or all attempts failed; re-raise original error
-            print("FATAL: Failed to install discord.py and no usable requirements file found.")
+            print("[ERROR] Cannot import discord after retries")
             raise
 
 from discord.ext import commands

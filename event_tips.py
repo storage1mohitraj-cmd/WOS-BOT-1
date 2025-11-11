@@ -12,7 +12,7 @@ This module provides comprehensive event information including:
 Version: 2025-07-30-b5c6d7e8-1234-5678-abcd-8901234abcde (Python)
 """
 
-print('ℹ️ Loading event_tips.py version: 2025-07-30-b5c6d7e8-1234-5678-abcd-8901234abcde (Python)')
+print('[INFO] Loading event_tips.py version: 2025-07-30-b5c6d7e8-1234-5678-abcd-8901234abcde (Python)')
 
 # Event image URLs - converted from images.js
 EVENT_IMAGES = {
@@ -334,14 +334,14 @@ __all__ = [
 
 if __name__ == "__main__":
     # Simple test when run directly
-    print(f"📊 Event Tips System loaded with {len(EVENT_TIPS)} events")
-    print(f"🏷️ Categories: {', '.join(EVENT_CATEGORIES.keys())}")
-    print(f"📈 Difficulties: {', '.join(DIFFICULTY_COLORS.keys())}")
+    print(f"[STATS] Event Tips System loaded with {len(EVENT_TIPS)} events")
+    print(f"[TAGS] Categories: {', '.join(EVENT_CATEGORIES.keys())}")
+    print(f"[DIFF] Difficulties: {', '.join(DIFFICULTY_COLORS.keys())}")
     
     # Show a sample event
     sample_event = get_event_info('bear')
     if sample_event:
-        print(f"\n🐻 Sample Event: {sample_event['name']}")
+        print(f"\n[SAMPLE] Event: {sample_event['name']}")
         print(f"   Difficulty: {sample_event['difficulty']}")
         print(f"   Duration: {sample_event['duration']}")
         print(f"   Category: {sample_event['category']}")

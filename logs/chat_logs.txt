@@ -3723,3 +3723,83 @@ NameError: name 'has_obsolete_requirements' is not defined
 2025-11-11 19:34:24,599 - [GUILD: Mohit Raj (1147956569271697518)] [CHANNEL: test (1406122908476112956)] [AUTHOR: M𝖆𝖌𝖓𝖚s (850786361572720661)] msg_id=1437805167385907336 attachments=0 Content: 496768085
 2025-11-11 19:34:39,644 - [GUILD: Mohit Raj (1147956569271697518)] [CHANNEL: test (1406122908476112956)] [AUTHOR: M𝖆𝖌𝖓𝖚s (850786361572720661)] msg_id=1437805231076540477 attachments=0 Content: 296768085
 2025-11-11 19:34:55,562 - [GUILD: Mohit Raj (1147956569271697518)] [CHANNEL: test (1406122908476112956)] [AUTHOR: M𝖆𝖌𝖓𝖚s (850786361572720661)] msg_id=1437805297816178882 attachments=0 Content: hi nqdjn 296768085
+2025-11-11 23:51:35,669 - devx#5389 has connected to Discord!
+2025-11-11 23:51:35,670 - Bot is currently a member of 4 guild(s): [(850787279664185434, "Mohit Raj's server"), (1133463326182080634, 'Face Swap'), (1147956569271697518, 'Mohit Raj'), (1408337831872565438, 'State #3063')]
+2025-11-11 23:51:35,817 - Database tables verified/created
+2025-11-11 23:51:35,817 - Health server task started on port 8080
+2025-11-11 23:51:35,817 - Uptime checker task started
+2025-11-11 23:51:35,817 - Giftcode poster task started
+2025-11-11 23:51:35,817 - Skipping music cog load (file removed)
+2025-11-11 23:51:35,828 - Pre-loaded cogs.alliance extension before sync
+2025-11-11 23:51:36,216 - Pre-loaded cogs.gift_operations extension before sync
+2025-11-11 23:51:36,220 - Pre-loaded cogs.playerinfo extension before sync
+2025-11-11 23:51:36,844 - Successfully synced global commands
+2025-11-11 23:51:37,292 - Synced commands to guild 1147956569271697518
+2025-11-11 23:51:37,293 - Registered persistent GiftCodeView for button interactions
+2025-11-11 23:51:40,682 - Registered persistent view GiftCodeView for message 1437801623245160594 in Face Swap/general
+2025-11-11 23:51:43,504 - Registered persistent view GiftCodeView for message 1437801436304904354 in Mohit Raj/notes-resources
+2025-11-11 23:51:43,505 - Registered persistent view GiftCodeView for message 1437788706458177618 in Mohit Raj/notes-resources
+2025-11-11 23:51:43,505 - Registered persistent view GiftCodeView for message 1437788654079709214 in Mohit Raj/notes-resources
+2025-11-11 23:51:43,506 - Registered persistent view GiftCodeView for message 1437788577881653482 in Mohit Raj/notes-resources
+2025-11-11 23:51:43,506 - Registered persistent view GiftCodeView for message 1437749943950508044 in Mohit Raj/notes-resources
+2025-11-11 23:51:43,509 - Registered persistent view GiftCodeView for message 1437543290374197288 in Mohit Raj/notes-resources
+2025-11-11 23:51:45,709 - Registered persistent view GiftCodeView for message 1437752422696091658 in Mohit Raj/test
+2025-11-11 23:52:12,280 - Loaded cogs.other_features extension
+2025-11-11 23:52:12,285 - Loaded cogs.olddb
+2025-11-11 23:52:12,349 - Loaded cogs.control
+2025-11-11 23:52:12,354 - Loaded cogs.alliance_member_operations
+2025-11-11 23:52:12,361 - Loaded cogs.bot_operations
+2025-11-11 23:52:12,367 - Loaded cogs.logsystem
+2025-11-11 23:52:12,371 - Loaded cogs.support_operations
+2025-11-11 23:52:12,379 - Loaded cogs.changes
+2025-11-11 23:52:12,386 - Loaded cogs.w
+2025-11-11 23:52:12,392 - Loaded cogs.wel
+2025-11-11 23:52:12,409 - Loaded cogs.bear_trap
+2025-11-11 23:52:12,418 - Loaded cogs.id_channel
+2025-11-11 23:52:12,429 - Loaded cogs.backup_operations
+2025-11-11 23:52:12,434 - Loaded cogs.bear_trap_editor
+2025-11-11 23:52:12,634 - Loaded cogs.attendance
+2025-11-11 23:52:12,640 - Loaded cogs.attendance_report
+2025-11-11 23:52:12,707 - Loaded cogs.minister_schedule
+2025-11-11 23:52:12,712 - Loaded cogs.minister_menu
+2025-11-11 23:52:12,713 - Registered app commands: ['dice', 'birthday', 'debug_list_commands', 'debug_cogs', 'event', 'ask', 'add_trait', 'giftcode', 'refresh', 'storage_status', 'reminder', 'reminderdashboard', 'giftcodesettings', 'imagine', 'serverstats', 'mostactive', 'help', 'dicebattle', 'register_view', 'settings', 'playerinfo', 'w', 'channel', 'minister_add', 'minister_remove', 'minister_clear_all', 'minister_list']
+2025-11-12 00:08:59,485 - devx#5389 has connected to Discord!
+2025-11-12 00:08:59,486 - Bot is currently a member of 4 guild(s): [(850787279664185434, "Mohit Raj's server"), (1133463326182080634, 'Face Swap'), (1147956569271697518, 'Mohit Raj'), (1408337831872565438, 'State #3063')]
+2025-11-12 00:08:59,527 - Database tables verified/created
+2025-11-12 00:08:59,527 - Health server task started on port 8080
+2025-11-12 00:08:59,528 - Uptime checker task started
+2025-11-12 00:08:59,528 - Giftcode poster task started
+2025-11-12 00:08:59,528 - Skipping music cog load (file removed)
+2025-11-12 00:08:59,532 - Pre-loaded cogs.alliance extension before sync
+2025-11-12 00:08:59,931 - Pre-loaded cogs.gift_operations extension before sync
+2025-11-12 00:08:59,932 - Pre-loaded cogs.playerinfo extension before sync
+2025-11-12 00:09:00,461 - Successfully synced global commands
+2025-11-12 00:09:01,139 - Synced commands to guild 1147956569271697518
+2025-11-12 00:09:01,140 - Registered persistent GiftCodeView for button interactions
+2025-11-12 00:09:05,105 - Registered persistent view GiftCodeView for message 1437801623245160594 in Face Swap/general
+2025-11-12 00:09:07,779 - Registered persistent view GiftCodeView for message 1437801436304904354 in Mohit Raj/notes-resources
+2025-11-12 00:09:07,780 - Registered persistent view GiftCodeView for message 1437788706458177618 in Mohit Raj/notes-resources
+2025-11-12 00:09:07,780 - Registered persistent view GiftCodeView for message 1437788654079709214 in Mohit Raj/notes-resources
+2025-11-12 00:09:07,780 - Registered persistent view GiftCodeView for message 1437788577881653482 in Mohit Raj/notes-resources
+2025-11-12 00:09:07,781 - Registered persistent view GiftCodeView for message 1437749943950508044 in Mohit Raj/notes-resources
+2025-11-12 00:09:07,782 - Registered persistent view GiftCodeView for message 1437543290374197288 in Mohit Raj/notes-resources
+2025-11-12 00:09:09,690 - Registered persistent view GiftCodeView for message 1437752422696091658 in Mohit Raj/test
+2025-11-12 00:09:35,588 - Loaded cogs.other_features extension
+2025-11-12 00:09:35,592 - Loaded cogs.olddb
+2025-11-12 00:09:35,663 - Loaded cogs.control
+2025-11-12 00:09:35,667 - Loaded cogs.alliance_member_operations
+2025-11-12 00:09:35,674 - Loaded cogs.bot_operations
+2025-11-12 00:09:35,680 - Loaded cogs.logsystem
+2025-11-12 00:09:35,685 - Loaded cogs.support_operations
+2025-11-12 00:09:35,698 - Loaded cogs.changes
+2025-11-12 00:09:35,703 - Loaded cogs.w
+2025-11-12 00:09:35,709 - Loaded cogs.wel
+2025-11-12 00:09:35,721 - Loaded cogs.bear_trap
+2025-11-12 00:09:35,728 - Loaded cogs.id_channel
+2025-11-12 00:09:35,736 - Loaded cogs.backup_operations
+2025-11-12 00:09:35,740 - Loaded cogs.bear_trap_editor
+2025-11-12 00:09:35,829 - Loaded cogs.attendance
+2025-11-12 00:09:35,833 - Loaded cogs.attendance_report
+2025-11-12 00:09:35,907 - Loaded cogs.minister_schedule
+2025-11-12 00:09:35,913 - Loaded cogs.minister_menu
+2025-11-12 00:09:35,913 - Registered app commands: ['dice', 'birthday', 'debug_list_commands', 'debug_cogs', 'event', 'ask', 'add_trait', 'giftcode', 'refresh', 'storage_status', 'reminder', 'reminderdashboard', 'giftcodesettings', 'imagine', 'serverstats', 'mostactive', 'help', 'dicebattle', 'register_view', 'settings', 'playerinfo', 'w', 'channel', 'minister_add', 'minister_remove', 'minister_clear_all', 'minister_list']
