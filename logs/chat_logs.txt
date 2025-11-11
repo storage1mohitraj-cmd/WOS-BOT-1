@@ -3803,3 +3803,47 @@ NameError: name 'has_obsolete_requirements' is not defined
 2025-11-12 00:09:35,907 - Loaded cogs.minister_schedule
 2025-11-12 00:09:35,913 - Loaded cogs.minister_menu
 2025-11-12 00:09:35,913 - Registered app commands: ['dice', 'birthday', 'debug_list_commands', 'debug_cogs', 'event', 'ask', 'add_trait', 'giftcode', 'refresh', 'storage_status', 'reminder', 'reminderdashboard', 'giftcodesettings', 'imagine', 'serverstats', 'mostactive', 'help', 'dicebattle', 'register_view', 'settings', 'playerinfo', 'w', 'channel', 'minister_add', 'minister_remove', 'minister_clear_all', 'minister_list']
+2025-11-12 00:19:01,590 - Uncaught exception
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\app.py", line 4494, in check_and_install_requirements
+    print(f"Installed {package}")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\STARK-whiteout survival bot\.testvenv\Lib\site-packages\colorama\ansitowin32.py", line 47, in write
+    self.__convertor.write(text)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "F:\STARK-whiteout survival bot\.testvenv\Lib\site-packages\colorama\ansitowin32.py", line 177, in write
+    self.write_and_convert(text)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "F:\STARK-whiteout survival bot\.testvenv\Lib\site-packages\colorama\ansitowin32.py", line 205, in write_and_convert
+    self.write_plain_text(text, cursor, len(text))
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\STARK-whiteout survival bot\.testvenv\Lib\site-packages\colorama\ansitowin32.py", line 211, in write_plain_text
+    self.wrapped.flush()
+    ~~~~~~~~~~~~~~~~~~^^
+OSError: [Errno 22] Invalid argument
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\app.py", line 4665, in <module>
+    if not setup_dependencies(beta_mode=beta_mode):
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\app.py", line 4537, in setup_dependencies
+    if not check_and_install_requirements():
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "F:\STARK-whiteout survival bot\DISCORD BOT\app.py", line 4496, in check_and_install_requirements
+    print(f"Failed to install {package}: {e}")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\STARK-whiteout survival bot\.testvenv\Lib\site-packages\colorama\ansitowin32.py", line 47, in write
+    self.__convertor.write(text)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "F:\STARK-whiteout survival bot\.testvenv\Lib\site-packages\colorama\ansitowin32.py", line 177, in write
+    self.write_and_convert(text)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "F:\STARK-whiteout survival bot\.testvenv\Lib\site-packages\colorama\ansitowin32.py", line 205, in write_and_convert
+    self.write_plain_text(text, cursor, len(text))
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\STARK-whiteout survival bot\.testvenv\Lib\site-packages\colorama\ansitowin32.py", line 211, in write_plain_text
+    self.wrapped.flush()
+    ~~~~~~~~~~~~~~~~~~^^
+OSError: [Errno 22] Invalid argument

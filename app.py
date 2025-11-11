@@ -2,42 +2,65 @@ import os
 import sys
 import subprocess
 from pathlib import Path
+import importlib
+import time
 
-# If the repository has a Python 3.11 venv at the repo root named `.venv311`,
-# prefer running the bot under that venv automatically so the user can run
-# `python app.py` (system python) and the script will re-exec itself with
-# the venv's python. This avoids requiring manual activation.
-try:
-    repo_dir = Path(__file__).resolve().parent
-    venv_python = (repo_dir.parent / '.venv311' / 'Scripts' / 'python.exe')
-    # Only re-exec if the venv python exists and we're not already running under it
-    if venv_python.exists():
-        try:
-            current_py = Path(sys.executable).resolve()
-            venv_py_resolved = venv_python.resolve()
-        except Exception:
-            current_py = None
-            venv_py_resolved = None
+# ============================================================================
+# STEP 1: Ensure all dependencies are installed BEFORE any other imports
+# ============================================================================
 
-        if venv_py_resolved and current_py != venv_py_resolved and os.environ.get('RUNNING_UNDER_VENV311') != '1':
-            # mark that we've re-executed to avoid an infinite loop
-            os.environ['RUNNING_UNDER_VENV311'] = '1'
-            os.environ.setdefault('PYTHONUTF8', '1')
-            # Use an absolute script path when re-execing so the new interpreter can open it
-            script_path = str(Path(__file__).resolve())
-            args = [str(venv_python), script_path] + sys.argv[1:]
-            os.execv(str(venv_python), args)
-except Exception:
-    # best-effort: if something goes wrong here, fall back to continuing under
-    # the current interpreter rather than failing to import the module.
-    pass
+def ensure_dependencies_installed():
+    """
+    Install all dependencies from requirements.txt in one shot.
+    This runs FIRST before any other imports to ensure packages are available.
+    """
+    # Find requirements.txt
+    req_paths = [
+        "/app/requirements.txt",                    # Docker
+        os.path.join(os.path.dirname(__file__), "requirements.txt"),  # Local
+    ]
+    
+    req_file = None
+    for path in req_paths:
+        if os.path.exists(path):
+            req_file = path
+            break
+    
+    if not req_file:
+        print("[ERROR] requirements.txt not found")
+        return False
+    
+    print(f"[SETUP] Installing dependencies from: {req_file}")
+    try:
+        # Install all dependencies quietly
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "--upgrade", "--quiet", 
+             "--disable-pip-version-check", "-r", req_file],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=1800  # 30 minutes max
+        )
+        print("[SETUP] Dependencies installed successfully")
+        
+        # Refresh module cache
+        importlib.invalidate_caches()
+        return True
+        
+    except subprocess.TimeoutExpired:
+        print("[ERROR] Installation timed out (>30 mins)")
+        return False
+    except Exception as e:
+        print(f"[ERROR] Installation failed: {e}")
+        return False
 
-# --- Backport useful helpers from main.py so this single entrypoint
-#     (`app.py`) provides the same runtime conveniences (venv auto-create,
-#     update utilities, cleanup helpers) that `main.py` offered.
-import subprocess
-import shutil
-import stat
+# Install dependencies first
+if not ensure_dependencies_installed():
+    print("[ERROR] Failed to install dependencies")
+    sys.exit(1)
+
+# ============================================================================
+# STEP 2: Now import everything else (safe because deps are installed)
+# ============================================================================
 
 def is_container() -> bool:
     return os.path.exists("/.dockerenv") or os.path.exists("/var/run/secrets/kubernetes.io")
@@ -50,296 +73,37 @@ def is_ci_environment() -> bool:
     ]
     return any(os.getenv(indicator) for indicator in ci_indicators)
 
-def should_skip_venv() -> bool:
-    """Check if venv should be skipped"""
-    return '--no-venv' in sys.argv or is_container() or is_ci_environment()
-
-# Handle bot_venv setup (legacy behavior from main.py). This tries to
-# create/run a repo-root venv named `bot_venv` when we're running under
-# the system Python and the user hasn't opted out. On Windows we print
-# instructions and exit so users can re-run with the venv Python; on
-# POSIX we attempt to re-exec into the venv Python automatically.
-try:
-    if sys.prefix == sys.base_prefix and not should_skip_venv():
+# Legacy: Handle venv setup if NOT in container/CI
+if not is_container() and not is_ci_environment():
+    if sys.prefix == sys.base_prefix:
         venv_path = os.path.join(os.path.dirname(__file__), 'bot_venv')
-
+        
         if sys.platform == "win32":
             venv_python_name = os.path.join(venv_path, "Scripts", "python.exe")
-            activate_script = os.path.join(venv_path, "Scripts", "activate.bat")
         else:
             venv_python_name = os.path.join(venv_path, "bin", "python")
-            activate_script = os.path.join(venv_path, "bin", "activate")
-
+        
         if not os.path.exists(venv_path):
             try:
-                print("Attempting to create virtual environment 'bot_venv' automatically...")
+                print("[SETUP] Creating virtual environment 'bot_venv'...")
                 subprocess.check_call([sys.executable, "-m", "venv", venv_path], timeout=300)
-                print(f"Virtual environment created at {venv_path}")
-
+                
                 if sys.platform == "win32":
-                    print("\nVirtual environment created.")
-                    print("To continue, please run the script again with the venv Python:")
-                    print(f"  1. Ensure PowerShell or CMD is open in this directory: {os.getcwd()}")
-                    print(f"  2. Run: {venv_python_name} {os.path.basename(sys.argv[0])}")
+                    print(f"[SETUP] Created. To use it, run: {venv_python_name} {os.path.basename(sys.argv[0])}")
                     sys.exit(0)
                 else:
-                    # Relaunch under the venv Python on POSIX
-                    venv_python_executable = venv_python_name
-                    if os.path.exists(venv_python_executable):
-                        print("Restarting script in virtual environment...")
-                        os.execv(venv_python_executable, [venv_python_executable] + sys.argv)
-
+                    print("[SETUP] Restarting in virtual environment...")
+                    os.execv(venv_python_name, [venv_python_name] + sys.argv)
             except Exception as e:
-                print("Failed to create virtual environment automatically.")
-                print(f"Error: {e}")
-                print("Please create one manually with: python -m venv bot_venv")
-                sys.exit(1)
-        else:
-            # Venv exists but we're not running under it. On Windows instruct
-            # the user to run with the venv python; on POSIX try to re-exec.
-            if sys.platform == "win32":
-                print(f"Virtual environment at {venv_path} exists. Please run the script with the venv Python:")
-                print(f"  {venv_python_name} {os.path.basename(sys.argv[0])}")
-                sys.exit(0)
-            else:
-                venv_python_executable = venv_python_name
-                if os.path.exists(venv_python_executable):
-                    print(f"Using existing virtual environment at {venv_path}. Restarting...")
-                    os.execv(venv_python_executable, [venv_python_executable] + sys.argv)
-                else:
-                    print(f"Virtual environment at {venv_path} appears corrupted or incomplete.")
-                    sys.exit(1)
-except Exception:
-    # Best-effort: if anything fails here, continue under current interpreter.
-    pass
+                print(f"[WARN] Could not create venv: {e}")
+                # Continue anyway - deps are already installed
+print("[SETUP] Bot initialization complete")
 
-def remove_readonly(func, path, _):
-    """Clear the readonly bit and reattempt the removal"""
-    os.chmod(path, stat.S_IWRITE)
-    func(path)
+# ============================================================================
+# NOW safe to import everything
+# ============================================================================
 
-def safe_remove(path, is_dir=None):
-    """
-    Safely remove a file or directory.
-    Clear the read-only bit on Windows.
-    """
-    if not os.path.exists(path):
-        return True
-    if is_dir is None:
-        is_dir = os.path.isdir(path)
-    try:
-        if is_dir:
-            if sys.platform == "win32":
-                shutil.rmtree(path, onexc=remove_readonly)
-            else:
-                shutil.rmtree(path)
-        else:
-            try:
-                os.remove(path)
-            except PermissionError:
-                if sys.platform == "win32":
-                    os.chmod(path, stat.S_IWRITE)
-                    os.remove(path)
-                else:
-                    raise
-        return True
-    except Exception:
-        return False
-
-def calculate_file_hash(filepath):
-    import hashlib
-    if not os.path.exists(filepath):
-        return None
-    sha256_hash = hashlib.sha256()
-    try:
-        with open(filepath, "rb") as f:
-            for byte_block in iter(lambda: f.read(4096), b""):
-                sha256_hash.update(byte_block)
-        return sha256_hash.hexdigest()
-    except Exception:
-        return None
-
-def is_package_installed(package_name):
-    try:
-        result = subprocess.run(
-            [sys.executable, "-m", "pip", "show", package_name],
-            capture_output=True, text=True, timeout=30
-        )
-        return result.returncode == 0
-    except Exception:
-        return False
-
-# Ensure requests is available (used by update helpers). If missing,
-# try to install it automatically — fall back to an informative error.
-try:
-    import requests
-except ImportError:
-    try:
-        print("Installing 'requests' package (required)...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"], timeout=300)
-        import requests
-    except Exception:
-        # If we cannot install, continue; update helpers will behave
-        # more conservatively when requests is missing.
-        requests = None
-
-# Ensure the Discord library is available. Some deployment environments
-# (buildpacks / auto venvs) may not run `pip install -r requirements.txt`
-# before executing `app.py`. Try to import and, if missing, install the
-# maintained `discord.py` package (the project expects `discord` module
-# provided by `discord.py` or compatible forks).
-# Debug: emit early runtime info to help troubleshoot missing-package failures
-try:
-    print("--- STARTUP DEBUG ---")
-    print(f"cwd={os.getcwd()}")
-    print(f"sys.executable={sys.executable}")
-    print(f"python_version={sys.version}")
-    print(f"sys.path={sys.path}")
-    try:
-        print("/app exists:", os.path.exists('/app'))
-        print("/app listing:", os.listdir('/app')[:50])
-    except Exception:
-        print("Could not list /app")
-    print("requirements present:", os.path.exists('/app/requirements.txt'))
-    print("subfolder requirements present:", os.path.exists('/app/DISCORD BOT/requirements.txt'))
-    print("--- END STARTUP DEBUG ---")
-except Exception:
-    pass
-def _install_all_requirements_once():
-    """
-    Install ALL requirements from requirements.txt in one go.
-    This is much more reliable than installing individual packages.
-    Returns True if successful, False otherwise.
-    """
-    req_paths = [
-        "/app/requirements.txt",
-        os.path.join(os.path.dirname(__file__), "requirements.txt"),
-        "/app/DISCORD BOT/requirements.txt",
-        os.path.join(os.path.dirname(__file__), "DISCORD BOT", "requirements.txt"),
-    ]
-    
-    for req_path in req_paths:
-        if os.path.exists(req_path):
-            try:
-                print(f"[INIT] Installing all dependencies from: {req_path}")
-                print(f"[INIT] This may take a few minutes on first run...")
-                # Install with timeout of 30 minutes for large installs
-                subprocess.check_call([
-                    sys.executable, "-m", "pip", "install", 
-                    "--quiet",  # Reduce noise
-                    "--upgrade", 
-                    "-r", req_path
-                ], timeout=1800, env=dict(os.environ, PIP_NO_CACHE_DIR="1"))
-                
-                print(f"[INIT] [OK] Dependencies installed successfully")
-                return True
-            except subprocess.TimeoutExpired:
-                print(f"[ERROR] Installation timed out (took >30 mins)")
-                return False
-            except subprocess.CalledProcessError as e:
-                print(f"[ERROR] Installation failed: {e}")
-                # Don't give up yet, try next path
-                continue
-            except Exception as e:
-                print(f"[ERROR] Unexpected error during install: {e}")
-                continue
-    
-    return False
-
-def _refresh_module_cache():
-    """
-    Refresh the Python module search path after pip install.
-    This is critical for packages to be found immediately after installation.
-    """
-    import importlib
-    import site
-    
-    # Clear the import cache
-    importlib.invalidate_caches()
-    
-    # Reload the site module to update sys.path
-    if hasattr(site, 'getsitepackages'):
-        importlib.reload(site)
-    
-    # Add site-packages to sys.path if not already there
-    site_packages = [p for p in site.getsitepackages() if 'site-packages' in p]
-    for sp in site_packages:
-        if sp not in sys.path:
-            sys.path.insert(0, sp)
-    
-    # Also handle venv site-packages
-    venv_site = os.path.join(sys.prefix, 'lib', 'site-packages')
-    if os.path.exists(venv_site) and venv_site not in sys.path:
-        sys.path.insert(0, venv_site)
-    
-    # Windows venv site-packages
-    venv_site_win = os.path.join(sys.prefix, 'Lib', 'site-packages')
-    if os.path.exists(venv_site_win) and venv_site_win not in sys.path:
-        sys.path.insert(0, venv_site_win)
-
-# CRITICAL: Install all dependencies FIRST before any imports
-print("[INIT] Discord Bot Startup - Initializing...")
-print(f"[INIT] Python: {sys.version}")
-print(f"[INIT] Executable: {sys.executable}")
-
-try:
-    # Check if any critical module is missing
-    critical_imports = ['discord', 'dotenv', 'aiohttp', 'PIL', 'pymongo', 'bs4']
-    missing = []
-    for mod in critical_imports:
-        try:
-            __import__(mod)
-        except ImportError:
-            missing.append(mod)
-    
-    if missing:
-        print(f"[INIT] Missing modules detected: {', '.join(missing)}")
-        print(f"[INIT] Installing dependencies...")
-        
-        if not _install_all_requirements_once():
-            print("[ERROR] Failed to install requirements")
-            print("[ERROR] Attempting workaround...")
-            # Try to install the most critical ones individually as last resort
-            critical_packages = ["discord.py", "python-dotenv", "aiohttp", "pillow", "pymongo"]
-            for pkg in critical_packages:
-                try:
-                    subprocess.check_call([
-                        sys.executable, "-m", "pip", "install", "--upgrade", "--quiet", pkg
-                    ], timeout=600, env=dict(os.environ, PIP_NO_CACHE_DIR="1"))
-                except Exception as e:
-                    print(f"[WARN] Could not install {pkg}: {e}")
-        
-        # Refresh module cache after installation
-        print("[INIT] Refreshing module cache...")
-        _refresh_module_cache()
-    else:
-        print("[INIT] All critical dependencies already installed")
-
-except Exception as e:
-    print(f"[ERROR] During dependency check: {e}")
-    import traceback
-    traceback.print_exc()
-
-# Final verification - Import critical modules
-print("[INIT] Verifying imports...")
-import time
-max_wait = 5
-waited = 0
-while waited < max_wait:
-    try:
-        import discord
-        print("[INIT] [OK] discord.py loaded")
-        break
-    except ImportError:
-        waited += 1
-        if waited < max_wait:
-            print(f"[INIT] Retrying discord import ({waited}/{max_wait})...")
-            _refresh_module_cache()
-            time.sleep(1)
-        else:
-            print("[ERROR] Cannot import discord after retries")
-            raise
-
+import discord
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
