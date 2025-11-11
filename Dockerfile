@@ -56,5 +56,9 @@ RUN if [ -f "/app/DISCORD BOT/requirements.txt" ]; then \
 # Ensure prebuild script is executable (if present)
 RUN if [ -f /app/prebuild.sh ]; then chmod +x /app/prebuild.sh; fi
 
-# Default command
-CMD ["python", "app.py"]
+# Copy and make the runtime start script executable
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh || true
+
+# Default command: run the start script which uses the build-time venv
+CMD ["/app/start.sh"]
