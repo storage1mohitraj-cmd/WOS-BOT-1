@@ -7,4 +7,4 @@ version
 .python-version
 bot_venv
 .env
-.env.*
+.env.*.env
