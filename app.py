@@ -2035,6 +2035,489 @@ async def event(interaction: discord.Interaction, event_name: str):
                 logger.error(f"Failed to send final error message: {final_error}")
 
 
+# ============================================================================
+# SERVER AGE COMMAND - Web Scraping Version
+# ============================================================================
+
+import asyncio
+from bs4 import BeautifulSoup
+
+async def fetch_server_age(server_number: str) -> dict:
+    """
+    Fetch server age from whiteoutsurvival.pl using the website's AJAX API.
+    
+    Uses the server_timeline_parser to extract structured data from the timeline.
+    Endpoint: POST https://whiteoutsurvival.pl/wp-admin/admin-ajax.php
+    Payload: action=stp_get_timeline, nonce (optional), server_id
+    
+    Args:
+        server_number: The state number (e.g., "3063")
+        
+    Returns:
+        dict with keys: success (bool), days (int), server_open_date (str), error (str)
+    """
+    try:
+        import aiohttp
+        import json
+        import re
+        from server_timeline_parser import parse_response
+        
+        TIMELINE_PAGE = "https://whiteoutsurvival.pl/state-timeline/"
+        AJAX_ENDPOINT = "https://whiteoutsurvival.pl/wp-admin/admin-ajax.php"
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+            "Accept": "*/*",
+            "Referer": TIMELINE_PAGE,
+            "X-Requested-With": "XMLHttpRequest",
+        }
+        
+        async with aiohttp.ClientSession(headers=headers) as session:
+            # Step 1: Try to extract nonce from the timeline page
+            nonce = None
+            try:
+                async with session.get(TIMELINE_PAGE, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 200:
+                        text = await resp.text()
+                        # Try several patterns to extract nonce, prioritizing JSON format
+                        patterns = [
+                            r'"(?:stp_nonce|nonce|wp_nonce)"\s*:\s*"([a-f0-9]{6,})"',  # JSON format (PRIORITY)
+                            r'name=["\']?nonce["\']?\s+value=["\']([^"\']+)["\']',      # HTML input field
+                            r'data-nonce=["\']([^"\']+)["\']',                          # HTML data attribute
+                            r'(?:stp_nonce|nonce|wp_nonce|_ajax_nonce)\s*[:=]\s*["\']([a-f0-9]{6,})["\']',  # JS variable
+                        ]
+                        for pattern in patterns:
+                            m = re.search(pattern, text, re.I)
+                            if m:
+                                nonce = m.group(1)
+                                logger.debug(f"[server_age] Extracted nonce: {nonce[:10]}...")
+                                break
+                        if not nonce:
+                            logger.debug(f"[server_age] No nonce found in timeline page")
+            except Exception as e:
+                logger.debug(f"[server_age] Failed to extract nonce from timeline page: {e}")
+            
+            # Step 2: POST to the AJAX endpoint with action=stp_get_timeline
+            payload = {
+                "action": "stp_get_timeline",
+                "server_id": server_number,
+            }
+            
+            # Only add nonce if we found one
+            if nonce:
+                payload["nonce"] = nonce
+            
+            try:
+                async with session.post(
+                    AJAX_ENDPOINT,
+                    data=payload,
+                    timeout=aiohttp.ClientTimeout(total=10)
+                ) as response:
+                    text = await response.text()
+                    logger.debug(f"[server_age] AJAX response status: {response.status}")
+                    
+                    if response.status in (200, 201):
+                        # Parse the response using our parser
+                        try:
+                            parsed_json = json.loads(text)
+                            structured = parse_response(parsed_json, server_id=server_number, compact=True)
+                        except json.JSONDecodeError:
+                            # Fallback: try parsing as HTML/text
+                            structured = parse_response(text, server_id=server_number, compact=True)
+                        
+                        # Extract the useful fields
+                        days = structured.get('days')
+                        open_date = structured.get('open_date')
+                        
+                        if days is not None:
+                            return {
+                                "success": True,
+                                "days": days,
+                                "server_open_date": open_date or "",
+                                "active_text": structured.get('active_text', ''),
+                            }
+                        else:
+                            return {
+                                "success": False,
+                                "error": f"Server with ID {server_number} not found.",
+                            }
+                    elif response.status == 403:
+                        # Nonce might be required or IP blocked
+                        logger.debug(f"[server_age] Got 403 response. Response text: {text[:200]}")
+                        return {
+                            "success": False,
+                            "error": "Access denied by server (403). The server may require authentication or your IP may be rate-limited. Try again in a few minutes.",
+                        }
+                    elif response.status == 404:
+                        return {
+                            "success": False,
+                            "error": f"Server {server_number} not found (404). Please check the server number is correct.",
+                        }
+                    else:
+                        logger.debug(f"[server_age] Response text: {text[:200]}")
+                        return {
+                            "success": False,
+                            "error": f"Server returned status {response.status}. Try again later.",
+                        }
+            except Exception as e:
+                logger.debug(f"[server_age] AJAX POST failed: {e}")
+        
+        # If we reach here, the request failed
+        return {
+            "success": False,
+            "error": "Could not retrieve server age. Please verify the server number is correct and try again."
+        }
+                
+    except asyncio.TimeoutError:
+        return {"success": False, "error": "Request timed out. Website took too long to respond. Please try again."}
+    except Exception as e:
+        logger.error(f"Error fetching server age: {e}")
+        return {"success": False, "error": f"Error: {str(e)[:100]}"}
+
+# Timeline data (cached locally for milestone info)
+TIMELINE_DATA = [
+    {"day": 0, "event": "Initial Heroes", "description": "Game start with initial heroes"},
+    {"day": 14, "event": "Tundra", "description": "Opened Tundra territory for Alliances"},
+    {"day": 34, "event": "Arena opponent Update", "description": "Opponent pool enlarged by nearby servers"},
+    {"day": 39, "event": "Fertile Land", "description": "Opened Fertile Land"},
+    {"day": 40, "event": "Gen 2 Heroes", "description": "Alonso, Flint, Philly released"},
+    {"day": 53, "event": "Sunfire Castle", "description": "Sunfire Castle becomes the battleground for state alliances"},
+    {"day": 54, "event": "First Pets Update", "description": "Musk Ox, Arctic Wolf, Cave Hyena unlocked"},
+    {"day": 60, "event": "Fire Crystal Age", "description": "Fire Crystal 1-3 unlocked"},
+    {"day": 80, "event": "SVS and KOI", "description": "State of Power (SVS) and King of Icefield events begin"},
+    {"day": 90, "event": "Second Pets Update", "description": "Titan Roc, Giant Tapir unlocked"},
+    {"day": 120, "event": "Gen 3 Heroes", "description": "Greg, Logan, Mia released"},
+    {"day": 140, "event": "Third Pets Update", "description": "Giant Elk, Snow Leopard unlocked"},
+    {"day": 150, "event": "Crystal Infrastructure", "description": "Fire Crystal 4-5 and Crystal laboratory unlock"},
+    {"day": 180, "event": "Legendary Equipment", "description": "Chief Legendary Gear Unlock"},
+    {"day": 195, "event": "Gen 4 Heroes", "description": "Ahmose, Lynn, Reina released"},
+    {"day": 200, "event": "Fourth Pets Update", "description": "Snow Ape, Cave Lion unlocked"},
+    {"day": 220, "event": "War Academy Update", "description": "War Academy, Fire Crystal Tech and T11 Troops"},
+    {"day": 270, "event": "Gen 5 Heroes", "description": "Gwen, Hector, Norah released"},
+    {"day": 280, "event": "Fifth Pets Update", "description": "Iron Rhino, Saber-tooth Tiger unlocked"},
+    {"day": 315, "event": "Advanced Crystal Update", "description": "Fire Crystal 6-8 and Refined Fire Crystal"},
+    {"day": 360, "event": "Gen 6 Heroes", "description": "Renee, Wayne, Wuming released"},
+    {"day": 370, "event": "Mammoth Update", "description": "Mammoth pet unlocked"},
+    {"day": 440, "event": "Gen 7 Heroes", "description": "Bradley, Edith, Gordon released"},
+    {"day": 500, "event": "Crystal Mastery", "description": "Fire Crystal 9-10 unlock"},
+    {"day": 520, "event": "Gen 8 Heroes", "description": "Gatot, Hendrik, Sonya released"},
+    {"day": 600, "event": "Gen 9 Heroes", "description": "Fred, Magnus, Xura released"},
+    {"day": 700, "event": "Gen 10 Heroes", "description": "Blanchette, Freya, Gregory released"},
+    {"day": 800, "event": "Gen 11 Heroes", "description": "Eleonora Gold, Lloyd, Rufus released"},
+    {"day": 870, "event": "Gen 12 Heroes", "description": "Ligeia, Karol, Hervor released"},
+    {"day": 951, "event": "Gen 13 Heroes", "description": "Gisela, Flora, Vulcanus released"},
+]
+
+def get_next_milestone(current_day):
+    """Get the next milestone and days until it"""
+    for milestone in TIMELINE_DATA:
+        if milestone["day"] > current_day:
+            days_until = milestone["day"] - current_day
+            return milestone, days_until
+    return None, None
+
+def get_recent_milestones(current_day, count=3):
+    """Get the most recent milestones"""
+    recent = [m for m in TIMELINE_DATA if m["day"] <= current_day]
+    return recent[-count:] if recent else []
+
+@bot.tree.command(name="server_age", description="Check your server age by server number")
+@app_commands.describe(state_number="Your server/state number (e.g., 1234)")
+async def server_age(interaction: discord.Interaction, state_number: str):
+    """Handle the server age command - fetches from website"""
+    logger.info(f"Server age command called with state_number: {state_number}")
+
+    try:
+        # Show thinking indicator
+        await interaction.response.defer(thinking=True)
+        
+        # Validate state number format
+        if not state_number.isdigit():
+            await interaction.followup.send(
+                "❌ Invalid state number! Please enter only digits (e.g., `/server_age state_number:1234`)",
+                ephemeral=True,
+            )
+            return
+        
+        # Fetch server age from website
+        result = await fetch_server_age(state_number)
+        
+        if not result["success"]:
+            await interaction.followup.send(
+                f"❌ {result['error']}",
+                ephemeral=True,
+            )
+            return
+        
+        days = result["days"]
+        
+        # Get next milestone
+        next_milestone, days_until = get_next_milestone(days)
+        recent_milestones = get_recent_milestones(days)
+
+        # Build a polished embed similar to the user's example
+        active_line = result.get('active_text') or result.get('active_line') or f"{days} days"
+        open_date = result.get('server_open_date') or result.get('open_date') or ''
+
+        title = f"🌍 State #{state_number}"
+        embed = discord.Embed(
+            title=title,
+            color=0x2E8B57,  # pleasant green
+        )
+
+        # Top section: server age block and start info
+        embed.add_field(
+            name="⏱️ Server Age",
+            value=f"```{active_line}```",
+            inline=False,
+        )
+
+        if open_date:
+            # show start date and time in two inline code blocks (date - time)
+            date_part = open_date
+            time_part = ''
+            m_split = re.search(r"(.+?)\s*[\-–]\s*(.+)", open_date)
+            if m_split:
+                date_part = m_split.group(1).strip()
+                time_part = m_split.group(2).strip()
+            else:
+                # try to detect time substring
+                m_time = re.search(r"(\d{2}:\d{2}:\d{2}(?:\s*[AP]M|\s*UTC)?)", open_date)
+                if m_time:
+                    time_part = m_time.group(1)
+                    date_part = open_date.replace(time_part, '').strip(' -')
+
+            if time_part:
+                embed.add_field(
+                    name="📅 Start Date & Time",
+                    value=f"```{date_part}``` - ```{time_part}```",
+                    inline=False,
+                )
+            else:
+                embed.add_field(
+                    name="📅 Start Date & Time",
+                    value=f"```{date_part}```",
+                    inline=False,
+                )
+
+        # Next milestone (large and prominent)
+        if next_milestone:
+            nm = next_milestone
+            nm_title = f"Day {nm['day']} — {nm['event']}"
+            nm_desc = nm.get('description') or ''
+            embed.add_field(
+                name="🎯 Next Milestone",
+                value=f"**{nm_title}**\n⏳ Coming in **{days_until}** days\n{nm_desc}",
+                inline=False,
+            )
+            # If a PNG link for the milestone is provided (either in the milestone dict
+            # or as a top-level result key), attach it to the embed.
+            image_url = None
+            # check common keys on the milestone dict
+            for key in ('image', 'img', 'thumbnail', 'png', 'image_url', 'url', 'media'):
+                v = nm.get(key) if isinstance(nm, dict) else None
+                if isinstance(v, str) and v.startswith('http') and v.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', '.gif')):
+                    image_url = v
+                    break
+            # check top-level result keys as fallback
+            if not image_url:
+                for key in ('next_milestone_image', 'next_image', 'milestone_image', 'milestone_png'):
+                    v = result.get(key)
+                    if isinstance(v, str) and v.startswith('http') and v.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', '.gif')):
+                        image_url = v
+                        break
+            if image_url:
+                # Prefer a very small thumbnail. Try to rewrite common WP size suffixes
+                def _shrink_image_url(u: str) -> str:
+                    try:
+                        # common WP pattern: ...-150x150.jpg or ..._150x150.jpg
+                        m = re.search(r'([\-_])(\d{2,4})x(\d{2,4})(\.(?:png|jpg|jpeg|webp|gif))$', u, re.I)
+                        if m:
+                            prefix = m.group(1)
+                            suf = m.group(4)
+                            # prefer a small 100x100 thumbnail
+                            return re.sub(r'([\-_])\d{2,4}x\d{2,4}(\.(?:png|jpg|jpeg|webp|gif))$', f"{prefix}100x100" + suf, u)
+                        # fallback: if url contains "/150x150/" style segments, try replacing with 100x100
+                        u2 = re.sub(r'/\d{2,4}x\d{2,4}/', '/100x100/', u)
+                        return u2
+                    except Exception:
+                        return u
+
+                thumb_url = _shrink_image_url(image_url)
+                try:
+                    embed.set_thumbnail(url=thumb_url)
+                except Exception:
+                    # ignore if embed thumbnail fails
+                    pass
+        else:
+            embed.add_field(
+                name="🎯 Next Milestone",
+                value="🏆 You've reached the end of the current timeline!",
+                inline=False,
+            )
+
+        # (Recent milestones and resources intentionally omitted per user request)
+
+        embed.set_footer(text=" Whiteout Survival || by Magnus 🚀", icon_url="https://cdn.discordapp.com/attachments/1435569370389807144/1436745053442805830/unnamed_5.png")
+
+        # Send the embed and start a small background task that updates the seconds
+        # in the Start field for 60s so it feels "live".
+        try:
+            sent_msg = await interaction.followup.send(embed=embed, wait=True)
+        except TypeError:
+            # older discord.py versions might not support wait=True
+            sent_msg = await interaction.followup.send(embed=embed)
+
+        # Launch background updater that edits the embed's Start field seconds
+        async def _animate_start_seconds(message, base_embed, date_part, time_part, duration=60):
+            import datetime
+            import re
+
+            # Determine hour:minute to keep fixed
+            hour = None
+            minute = None
+            m = re.search(r"(\d{1,2}):(\d{2}):\d{2}", time_part or "")
+            if m:
+                hour = int(m.group(1))
+                minute = int(m.group(2))
+            else:
+                m2 = re.search(r"(\d{1,2}):(\d{2})", time_part or "")
+                if m2:
+                    hour = int(m2.group(1))
+                    minute = int(m2.group(2))
+
+            # If we couldn't parse, fallback to current UTC hour/minute
+            if hour is None or minute is None:
+                now0 = datetime.datetime.utcnow()
+                hour = now0.hour
+                minute = now0.minute
+
+            try:
+                # base dict of the embed to modify
+                base_dict = base_embed.to_dict()
+            except Exception:
+                base_dict = None
+
+            sleep_interval = 1
+            failure_count = 0
+            for _ in range(duration):
+                try:
+                    now = datetime.datetime.utcnow()
+                    sec = now.second
+                    new_time = f"{hour:02d}:{minute:02d}:{sec:02d} UTC"
+
+                    if base_dict is not None:
+                        new_dict = dict(base_dict)
+                        # update the fields array in-place
+                        fields = new_dict.get('fields', [])
+                        for fld in fields:
+                            if fld.get('name') == '📅 Start':
+                                if time_part:
+                                    fld['value'] = f"```{date_part}``` - ```{new_time}```"
+                                else:
+                                    fld['value'] = f"```{date_part}```"
+                                break
+                        new_embed = discord.Embed.from_dict(new_dict)
+                        await message.edit(embed=new_embed)
+                    else:
+                        # fallback: rebuild a similar embed each loop
+                        new_embed = discord.Embed.from_dict(base_embed.to_dict())
+                        await message.edit(embed=new_embed)
+
+                    # success -> reset failure counter and ensure fastest interval
+                    failure_count = 0
+                    sleep_interval = 1
+                except Exception as exc:
+                    # on failure, back off to a slower update interval once
+                    failure_count += 1
+                    if sleep_interval == 1:
+                        sleep_interval = 2
+                        # try again with slower cadence
+                    else:
+                        # if we've already backed off and still failing a few times, stop
+                        if failure_count >= 3:
+                            break
+                await asyncio.sleep(sleep_interval)
+
+        # only start animation if we have a time part
+        try:
+            if open_date:
+                # date_part/time_part were computed earlier
+                asyncio.create_task(_animate_start_seconds(sent_msg, embed, date_part, time_part or '', duration=60))
+        except Exception:
+            pass
+
+    except Exception as e:
+        logger.error(f"Error in server_age command: {e}")
+        await interaction.followup.send(
+            "❌ An error occurred while fetching your server age. Please try again later.",
+            ephemeral=True,
+        )
+
+@bot.tree.command(name="timeline", description="View the complete Whiteout Survival game timeline")
+async def timeline(interaction: discord.Interaction):
+    """Show the complete game timeline"""
+    logger.info("Timeline command called")
+
+    try:
+        # Create multiple embeds if needed (Discord has character limits)
+        embeds = []
+
+        # First embed - overview
+        overview_embed = discord.Embed(
+            title="🌍 Complete Whiteout Survival Timeline",
+            description="Here's what unlocks as your server ages",
+            color=0x87CEEB,
+        )
+        overview_embed.add_field(
+            name="📊 Total Milestones",
+            value=f"{len(TIMELINE_DATA)} major events tracked",
+            inline=True,
+        )
+        overview_embed.add_field(
+            name="🎮 Latest Gen",
+            value="Gen 13 Heroes at Day 951",
+            inline=True,
+        )
+        embeds.append(overview_embed)
+
+        # Timeline embeds (split into chunks of 5-6 milestones)
+        chunk_size = 6
+        for i in range(0, len(TIMELINE_DATA), chunk_size):
+            chunk = TIMELINE_DATA[i:i+chunk_size]
+            embed = discord.Embed(
+                title=f"Timeline - Part {i//chunk_size + 1}",
+                color=0x87CEEB,
+            )
+
+            for milestone in chunk:
+                embed.add_field(
+                    name=f"Day {milestone['day']}: {milestone['event']}",
+                    value=milestone['description'],
+                    inline=False,
+                )
+
+            embeds.append(embed)
+
+        # Source embed
+        source_embed = discord.Embed(
+            title="📖 Source",
+            description="Timeline data extracted from [Whiteout Survival State Timeline](https://whiteoutsurvival.pl/state-timeline/)",
+            color=0x87CEEB,
+        )
+        source_embed.set_footer(text="Last updated: 2025-11-12")
+        embeds.append(source_embed)
+
+        # Send embeds
+        await interaction.response.send_message(embeds=embeds)
+
+    except Exception as e:
+        logger.error(f"Error in timeline command: {e}")
+        await interaction.response.send_message(
+            "❌ An error occurred while retrieving the timeline. Please try again.",
+            ephemeral=True,
+        )
+
 
 @bot.tree.command(name="ask", description="Ask a question or get help with anything!")
 @app_commands.describe(question="Your question or message")
