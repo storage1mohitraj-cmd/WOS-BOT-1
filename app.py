@@ -3404,104 +3404,104 @@ async def reminderdashboard(interaction: discord.Interaction):
     try:
         # Build a view with buttons that open selects/modals as needed
         class ReminderDeleteSelect(discord.ui.Select):
-        def __init__(self, reminders_list: list):
-            options = []
-            # Build options as numeric index (02-style) with description showing ID and short message
-            for idx, r in enumerate(reminders_list):
-                rid = str(r.get('id'))
-                msg = r.get('message', '')[:60].replace('\n', ' ')
-                label = f"{idx+1:02d}"  # shows as 01,02,03...
-                desc = (f"ID #{rid} — {msg}") if msg else f"ID #{rid}"
-                options.append(discord.SelectOption(label=label, description=desc, value=rid))
+            def __init__(self, reminders_list: list):
+                options = []
+                # Build options as numeric index (02-style) with description showing ID and short message
+                for idx, r in enumerate(reminders_list):
+                    rid = str(r.get('id'))
+                    msg = r.get('message', '')[:60].replace('\n', ' ')
+                    label = f"{idx+1:02d}"  # shows as 01,02,03...
+                    desc = (f"ID #{rid} — {msg}") if msg else f"ID #{rid}"
+                    options.append(discord.SelectOption(label=label, description=desc, value=rid))
 
-            super().__init__(placeholder="Select a reminder to delete", min_values=1, max_values=1, options=options)
+                super().__init__(placeholder="Select a reminder to delete", min_values=1, max_values=1, options=options)
 
-        async def callback(self, select_interaction: discord.Interaction):
-            try:
-                # Reminder IDs can be integers (SQLite) or string ObjectIds (Mongo).
-                # The select option value is the raw id as a string; pass it through and let
-                # the reminder system normalize/cast as needed.
-                chosen = self.values[0]
-                # Reuse existing helper to delete and respond
-                await reminder_system.delete_user_reminder(select_interaction, chosen)
-            except Exception as e:
-                logger.error(f"Failed to delete reminder via dashboard: {e}")
+            async def callback(self, select_interaction: discord.Interaction):
                 try:
-                    await select_interaction.response.send_message("Failed to delete reminder. Try again.", ephemeral=True)
-                except Exception:
-                    pass
+                    # Reminder IDs can be integers (SQLite) or string ObjectIds (Mongo).
+                    # The select option value is the raw id as a string; pass it through and let
+                    # the reminder system normalize/cast as needed.
+                    chosen = self.values[0]
+                    # Reuse existing helper to delete and respond
+                    await reminder_system.delete_user_reminder(select_interaction, chosen)
+                except Exception as e:
+                    logger.error(f"Failed to delete reminder via dashboard: {e}")
+                    try:
+                        await select_interaction.response.send_message("Failed to delete reminder. Try again.", ephemeral=True)
+                    except Exception:
+                        pass
 
-    class TimezoneSelect(discord.ui.Select):
-        def __init__(self):
-            options = []
-            # Add an explicit clear option
-            options.append(discord.SelectOption(label="Clear timezone (use default)", value="__clear__"))
-            # Map timezone abbreviations to friendly country/region names for display
-            tz_countries = {
-                'utc': 'Universal',
-                'gmt': 'UK/UTC',
-                'est': 'United States (Eastern)',
-                'cst': 'United States (Central)',
-                'mst': 'United States (Mountain)',
-                'pst': 'United States (Pacific)',
-                'ist': 'India',
-                'cet': 'Central Europe',
-                'cest': 'Central Europe',
-                'jst': 'Japan',
-                'aest': 'Australia',
-                'bst': 'United Kingdom'
-            }
-            for tz in sorted(TimeParser.TIMEZONE_MAP.keys()):
-                country = tz_countries.get(tz.lower(), '')
-                desc = country if country else TimeParser.TIMEZONE_MAP.get(tz.lower(), '')
-                # Use TZ abbreviation as the label and country as the description to help selection
-                options.append(discord.SelectOption(label=tz.upper(), description=desc, value=tz))
-            super().__init__(placeholder="Select timezone (or clear)", min_values=1, max_values=1, options=options)
+            class TimezoneSelect(discord.ui.Select):
+                def __init__(self):
+                    options = []
+                    # Add an explicit clear option
+                    options.append(discord.SelectOption(label="Clear timezone (use default)", value="__clear__"))
+                    # Map timezone abbreviations to friendly country/region names for display
+                    tz_countries = {
+                        'utc': 'Universal',
+                        'gmt': 'UK/UTC',
+                        'est': 'United States (Eastern)',
+                        'cst': 'United States (Central)',
+                        'mst': 'United States (Mountain)',
+                        'pst': 'United States (Pacific)',
+                        'ist': 'India',
+                        'cet': 'Central Europe',
+                        'cest': 'Central Europe',
+                        'jst': 'Japan',
+                        'aest': 'Australia',
+                        'bst': 'United Kingdom'
+                    }
+                    for tz in sorted(TimeParser.TIMEZONE_MAP.keys()):
+                        country = tz_countries.get(tz.lower(), '')
+                        desc = country if country else TimeParser.TIMEZONE_MAP.get(tz.lower(), '')
+                        # Use TZ abbreviation as the label and country as the description to help selection
+                        options.append(discord.SelectOption(label=tz.upper(), description=desc, value=tz))
+                    super().__init__(placeholder="Select timezone (or clear)", min_values=1, max_values=1, options=options)
 
-        async def callback(self, select_interaction: discord.Interaction):
-            try:
-                val = self.values[0]
-                user_id = select_interaction.user.id
-                if val == "__clear__":
-                    # Clear by setting empty string (get_user_timezone treats falsy as not set)
-                    set_user_timezone(user_id, '')
-                    await select_interaction.response.send_message("✅ Your timezone has been cleared.", ephemeral=True)
-                    return
+                async def callback(self, select_interaction: discord.Interaction):
+                    try:
+                        val = self.values[0]
+                        user_id = select_interaction.user.id
+                        if val == "__clear__":
+                            # Clear by setting empty string (get_user_timezone treats falsy as not set)
+                            set_user_timezone(user_id, '')
+                            await select_interaction.response.send_message("✅ Your timezone has been cleared.", ephemeral=True)
+                            return
 
-                # Set timezone
-                if val.lower() not in TimeParser.TIMEZONE_MAP:
-                    await select_interaction.response.send_message("Unknown timezone selection.", ephemeral=True)
-                    return
-                set_user_timezone(user_id, val.lower())
-                await select_interaction.response.send_message(f"✅ Timezone set to {val.upper()}", ephemeral=True)
-            except Exception as e:
-                logger.error(f"Failed to set timezone via dashboard: {e}")
+                        # Set timezone
+                        if val.lower() not in TimeParser.TIMEZONE_MAP:
+                            await select_interaction.response.send_message("Unknown timezone selection.", ephemeral=True)
+                            return
+                        set_user_timezone(user_id, val.lower())
+                        await select_interaction.response.send_message(f"✅ Timezone set to {val.upper()}", ephemeral=True)
+                    except Exception as e:
+                        logger.error(f"Failed to set timezone via dashboard: {e}")
+                        try:
+                            await select_interaction.response.send_message("Failed to set timezone. Try again.", ephemeral=True)
+                        except Exception:
+                            pass
+
+        class ReminderDashboardView(discord.ui.View):
+            def __init__(self):
+                # Keep the view alive for the lifetime of the bot process so buttons remain clickable
+                # until the bot restarts. If you want the view to be ephemeral or expire sooner,
+                # change this value.
+                super().__init__(timeout=None)
+
+            @discord.ui.button(label="List", style=discord.ButtonStyle.primary, custom_id="rd_list", emoji="📝")
+            async def list_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
                 try:
-                    await select_interaction.response.send_message("Failed to set timezone. Try again.", ephemeral=True)
-                except Exception:
-                    pass
-
-    class ReminderDashboardView(discord.ui.View):
-        def __init__(self):
-            # Keep the view alive for the lifetime of the bot process so buttons remain clickable
-            # until the bot restarts. If you want the view to be ephemeral or expire sooner,
-            # change this value.
-            super().__init__(timeout=None)
-
-        @discord.ui.button(label="List", style=discord.ButtonStyle.primary, custom_id="rd_list", emoji="📝")
-        async def list_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
-            try:
-                # Directly call the listing helper which will send the reminders embed.
-                # Avoid sending an extra header first because list_user_reminders uses
-                # interaction.response.send_message and that will fail if a response
-                # has already been sent for this interaction.
-                await reminder_system.list_user_reminders(button_interaction)
-            except Exception as e:
-                logger.error(f"Failed to list reminders via dashboard: {e}")
-                try:
-                    await button_interaction.response.send_message("Failed to fetch your reminders.", ephemeral=True)
-                except Exception:
-                    pass
+                    # Directly call the listing helper which will send the reminders embed.
+                    # Avoid sending an extra header first because list_user_reminders uses
+                    # interaction.response.send_message and that will fail if a response
+                    # has already been sent for this interaction.
+                    await reminder_system.list_user_reminders(button_interaction)
+                except Exception as e:
+                    logger.error(f"Failed to list reminders via dashboard: {e}")
+                    try:
+                        await button_interaction.response.send_message("Failed to fetch your reminders.", ephemeral=True)
+                    except Exception:
+                        pass
 
         @discord.ui.button(label="Delete", style=discord.ButtonStyle.secondary, custom_id="rd_delete", emoji="🗑️")
         async def delete_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
@@ -3541,7 +3541,14 @@ async def reminderdashboard(interaction: discord.Interaction):
                 except Exception:
                     pass
 
-    view = ReminderDashboardView()
+        view = ReminderDashboardView()
+    except Exception as e:
+        logger.error(f"Failed to build reminder dashboard UI: {e}")
+        await animator.stop_loading(interaction, delete=True)
+        try:
+            await interaction.response.send_message("Failed to open reminder dashboard UI.", ephemeral=True)
+        except Exception:
+            pass
 
     # Build preview items from storage for the renderer
     try:
@@ -3609,7 +3616,7 @@ async def reminderdashboard(interaction: discord.Interaction):
                 await interaction.followup.send('Failed to open reminder dashboard.', ephemeral=True)
             except Exception:
                 pass
-    except Exception:
+    finally:
         await animator.stop_loading(interaction, delete=True)
 
 
@@ -4214,6 +4221,15 @@ async def help_command(interaction: discord.Interaction):
         )
         embed.set_thumbnail(url="https://i.postimg.cc/Fzq03CJf/a463d7c7-7fc7-47fc-b24d-1324383ee2ff-removebg-preview.png")
         embed.set_footer(text="Type a command to get started!")
+
+    except Exception as e:
+        logger.error(f"Failed to build help embed: {e}")
+        await animator.stop_loading(interaction, delete=True)
+        try:
+            await interaction.response.send_message("Failed to build help response.", ephemeral=True)
+        except Exception:
+            pass
+        return
 
     class FeedbackModal(discord.ui.Modal, title="Your Feedback"):
         feedback = discord.ui.TextInput(
