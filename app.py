@@ -128,9 +128,28 @@ import os
 
 
 def ensure_db_tables():
-    """Create the minimal set of SQLite tables expected by BOT 2 and the
-    ported cogs. This is safe to call multiple times (uses IF NOT EXISTS).
+    """Initialize database backend: MongoDB if available, SQLite as fallback.
+    
+    IMPORTANT: MongoDB is always preferred for persistence on Render.
+    SQLite tables are only created if MongoDB is completely unavailable.
+    
+    For Render deployment:
+    - Set MONGO_URI environment variable to enable MongoDB persistence
+    - Data will be saved to MongoDB cloud (persistent across restarts)
+    - SQLite is used ONLY for local development (ephemeral)
     """
+    # Check if MongoDB is configured
+    mongo_uri = os.getenv('MONGO_URI')
+    if mongo_uri:
+        logger.info("[DB] ✅ MONGO_URI detected - Using MongoDB for ALL data persistence")
+        logger.info("[DB] All alliance data, users, and configs will be saved to MongoDB")
+        logger.info("[DB] Data will persist across bot restarts on Render")
+        return  # Skip SQLite initialization - use MongoDB exclusively
+    
+    # Only create SQLite tables if MongoDB is NOT available
+    logger.warning("[DB] ⚠️  MONGO_URI not set - Falling back to SQLite (NOT persistent on Render)")
+    logger.warning("[DB] Add MONGO_URI environment variable to enable persistent MongoDB storage")
+    
     db_dir = os.path.join(os.path.dirname(__file__), 'db')
     try:
         os.makedirs(db_dir, exist_ok=True)
