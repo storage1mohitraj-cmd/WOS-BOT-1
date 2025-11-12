@@ -4,7 +4,9 @@ import asyncio
 import sqlite3
 import re
 import random
+import os
 from datetime import datetime
+from typing import Optional
 import discord
 import ssl
 import logging
@@ -30,25 +32,45 @@ class GiftCodeAPI:
         self.max_backoff_time = 300
         self.current_backoff = self.error_backoff_time
         
-        if hasattr(bot, 'conn'):
-            self.conn = bot.conn
-            self.cursor = self.conn.cursor()
-        else:
-            self.conn = sqlite3.connect('db/giftcode.sqlite', timeout=30.0)
-            self.cursor = self.conn.cursor()
+        # Check if MongoDB is available
+        self.mongo_enabled = bool(os.getenv('MONGO_URI'))
+        
+        if self.mongo_enabled:
+            # Import MongoDB adapter
+            try:
+                from db.mongo_adapters import GiftCodesAdapter
+                self.gift_codes_adapter = GiftCodesAdapter
+                self.logger = logging.getLogger("gift_operationsapi")
+                self.logger.info("[GIFTCODES] ✅ MongoDB enabled - Using GiftCodesAdapter for all operations")
+            except ImportError as e:
+                self.logger = logging.getLogger("gift_operationsapi")
+                self.logger.error(f"[GIFTCODES] Failed to import GiftCodesAdapter: {e}")
+                self.mongo_enabled = False
+        
+        if not self.mongo_enabled:
+            # Fall back to SQLite
+            if hasattr(bot, 'conn'):
+                self.conn = bot.conn
+                self.cursor = self.conn.cursor()
+            else:
+                self.conn = sqlite3.connect('db/giftcode.sqlite', timeout=30.0)
+                self.cursor = self.conn.cursor()
+                
+            self.settings_conn = sqlite3.connect('db/settings.sqlite', timeout=30.0)
+            self.settings_cursor = self.settings_conn.cursor()
             
-        self.settings_conn = sqlite3.connect('db/settings.sqlite', timeout=30.0)
-        self.settings_cursor = self.settings_conn.cursor()
-        
-        self.users_conn = sqlite3.connect('db/users.sqlite', timeout=30.0)
-        self.users_cursor = self.users_conn.cursor()
-        
-        # Configure SQLite for better concurrent access, avoid DB locks
-        self.conn.execute("PRAGMA journal_mode=WAL")
-        self.conn.execute("PRAGMA synchronous=NORMAL")
-        self.conn.execute("PRAGMA cache_size=10000")
-        self.conn.execute("PRAGMA temp_store=MEMORY")
-        self.conn.commit()
+            self.users_conn = sqlite3.connect('db/users.sqlite', timeout=30.0)
+            self.users_cursor = self.users_conn.cursor()
+            
+            # Configure SQLite for better concurrent access, avoid DB locks
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA synchronous=NORMAL")
+            self.conn.execute("PRAGMA cache_size=10000")
+            self.conn.execute("PRAGMA temp_store=MEMORY")
+            self.conn.commit()
+            
+            self.logger = logging.getLogger("gift_operationsapi")
+            self.logger.info("[GIFTCODES] ⚠️ MongoDB not configured - Falling back to SQLite")
         
         self.ssl_context = ssl.create_default_context()
         self.ssl_context.check_hostname = False
@@ -57,6 +79,50 @@ class GiftCodeAPI:
         self.logger = logging.getLogger("gift_operationsapi")
         
         asyncio.create_task(self.start_api_check())
+
+    def _update_gift_code_status(self, code: str, status: str) -> bool:
+        """Helper to update gift code status in either MongoDB or SQLite"""
+        try:
+            if self.mongo_enabled:
+                return self.gift_codes_adapter.update_status(code, status)
+            else:
+                self.cursor.execute("UPDATE gift_codes SET validation_status = ? WHERE giftcode = ?", (status, code))
+                self.conn.commit()
+                return True
+        except Exception as e:
+            self.logger.error(f"Failed to update status for {code}: {e}")
+            return False
+
+    def _get_gift_code_status(self, code: str) -> Optional[str]:
+        """Helper to get gift code status from either MongoDB or SQLite"""
+        try:
+            if self.mongo_enabled:
+                docs = self.gift_codes_adapter.get_all()
+                for doc_code, doc_date, doc_status in docs:
+                    if doc_code == code:
+                        return doc_status
+                return None
+            else:
+                self.cursor.execute("SELECT validation_status FROM gift_codes WHERE giftcode = ?", (code,))
+                result = self.cursor.fetchone()
+                return result[0] if result else None
+        except Exception as e:
+            self.logger.error(f"Failed to get status for {code}: {e}")
+            return None
+
+    def _get_all_valid_gift_codes(self) -> list:
+        """Helper to get all non-invalid gift codes from either MongoDB or SQLite"""
+        try:
+            if self.mongo_enabled:
+                docs = self.gift_codes_adapter.get_all()
+                return [doc[0] for doc in docs if doc[2] != 'invalid']
+            else:
+                self.cursor.execute("SELECT giftcode FROM gift_codes WHERE validation_status != 'invalid'")
+                return [row[0] for row in self.cursor.fetchall()]
+        except Exception as e:
+            self.logger.error(f"Failed to get valid codes: {e}")
+            return []
+
 
     async def _execute_with_retry(self, operation, *args, max_retries=3, delay=0.1):
         """Execute a database operation with retry logic for handling locks."""
@@ -150,8 +216,20 @@ class GiftCodeAPI:
         """Synchronize gift codes with the API."""
         try:
             self.logger.info("Starting API synchronization")
-            self.cursor.execute("SELECT giftcode, date, validation_status FROM gift_codes")
-            db_codes = {row[0]: (row[1], row[2]) for row in self.cursor.fetchall()}
+            
+            # Get existing codes from database
+            if self.mongo_enabled:
+                db_codes = {}
+                try:
+                    codes_list = self.gift_codes_adapter.get_all()
+                    db_codes = {row[0]: (row[1], row[2]) for row in codes_list}
+                except Exception as e:
+                    self.logger.error(f"Failed to get codes from MongoDB: {e}")
+                    return False
+            else:
+                # Use SQLite
+                self.cursor.execute("SELECT giftcode, date, validation_status FROM gift_codes")
+                db_codes = {row[0]: (row[1], row[2]) for row in self.cursor.fetchall()}
             
             connector = aiohttp.TCPConnector(ssl=self.ssl_context)
             async with aiohttp.ClientSession(connector=connector) as session:
@@ -229,16 +307,20 @@ class GiftCodeAPI:
                                 if code not in db_codes:
                                     try:
                                         # First add as pending
-                                        self.cursor.execute(
-                                            "INSERT OR IGNORE INTO gift_codes (giftcode, date, validation_status) VALUES (?, ?, ?)",
-                                            (code, formatted_date, "pending")
-                                        )
+                                        if self.mongo_enabled:
+                                            self.gift_codes_adapter.insert(code, formatted_date, "pending")
+                                        else:
+                                            self.cursor.execute(
+                                                "INSERT OR IGNORE INTO gift_codes (giftcode, date, validation_status) VALUES (?, ?, ?)",
+                                                (code, formatted_date, "pending")
+                                            )
                                         new_codes.append((code, formatted_date))
                                     except Exception as e:
                                         self.logger.exception(f"Error inserting new code {code}: {e}")
 
                             try:
-                                await self._safe_commit(self.conn, "new codes insertion")
+                                if not self.mongo_enabled:
+                                    await self._safe_commit(self.conn, "new codes insertion")
 
                                 if new_codes: # Notify and process new codes
                                     self.logger.info(f"Added {len(new_codes)} new codes from API - validating...")
@@ -361,8 +443,7 @@ class GiftCodeAPI:
                                                 
                                                 if "invalid" in response_text.lower(): # Code was rejected as invalid by API, mark it as invalid locally
                                                     self.logger.warning(f"Code {db_code} marked invalid by API, updating local status")
-                                                    self.cursor.execute("UPDATE gift_codes SET validation_status = 'invalid' WHERE giftcode = ?", (db_code,))
-                                                    await self._safe_commit(self.conn, "mark code invalid")
+                                                    self._update_gift_code_status(db_code, 'invalid')
                                                 
                                                 backoff_time = await self._handle_api_error(post_response, response_text)
                                                 await asyncio.sleep(backoff_time)

@@ -6,5 +6,6 @@ from db.mongo_adapters import *
 
 # Backwards-compatible shim
 __all__ = [
-    'mongo_enabled', 'UserTimezonesAdapter', 'BirthdaysAdapter', 'UserProfilesAdapter', 'GiftcodeStateAdapter'
+    'mongo_enabled', 'UserTimezonesAdapter', 'BirthdaysAdapter', 'UserProfilesAdapter', 'GiftcodeStateAdapter', 'GiftCodesAdapter'
 ]
+
