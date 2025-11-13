@@ -1884,23 +1884,29 @@ class PaginatedChannelView(discord.ui.View):
 
 async def setup(bot):
     try:
-        # Ensure the repository `db` folder exists and is writable before connecting.
-        from pathlib import Path
+        # Prefer using a shared connection created in main.py (attached to bot)
+        conn = None
+        if hasattr(bot, "_connections") and isinstance(bot._connections, dict):
+            conn = bot._connections.get("conn_alliance")
 
-        repo_root = Path(__file__).resolve().parents[1]
-        db_dir = repo_root / "db"
-        try:
-            db_dir.mkdir(parents=True, exist_ok=True)
-        except Exception as mkdir_exc:
-            logger.error(f"Failed to create db directory {db_dir}: {mkdir_exc}")
+        if conn is None:
+            # Fallback: ensure the repository `db` folder exists and open local DB
+            from pathlib import Path
 
-        db_path = db_dir / "alliance.sqlite"
+            repo_root = Path(__file__).resolve().parents[1]
+            db_dir = repo_root / "db"
+            try:
+                db_dir.mkdir(parents=True, exist_ok=True)
+            except Exception as mkdir_exc:
+                logger.error(f"Failed to create db directory {db_dir}: {mkdir_exc}")
 
-        try:
-            conn = sqlite3.connect(str(db_path))
-        except Exception as conn_exc:
-            logger.error(f"✗ Failed to open SQLite DB at {db_path}: {conn_exc}")
-            raise
+            db_path = db_dir / "alliance.sqlite"
+
+            try:
+                conn = sqlite3.connect(str(db_path))
+            except Exception as conn_exc:
+                logger.error(f"✗ Failed to open SQLite DB at {db_path}: {conn_exc}")
+                raise
 
         cog = Alliance(bot, conn)
         await bot.add_cog(cog)

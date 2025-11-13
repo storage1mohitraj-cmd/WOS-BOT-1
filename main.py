@@ -914,6 +914,12 @@ if __name__ == "__main__":
 
     connections = {name: sqlite3.connect(path) for name, path in databases.items()}
 
+    # Attach DB connections to bot so cogs reuse the same connection objects
+    try:
+        bot._connections = connections
+    except Exception:
+        pass
+
     print(F.GREEN + "Database connections have been successfully established." + R)
 
     def create_tables():
