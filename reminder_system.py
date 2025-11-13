@@ -950,12 +950,21 @@ class ReminderSystem:
         try:
             if os.getenv('MONGO_URI'):
                 try:
+                    # Preferred import when package path is available
                     from db.reminder_storage_mongo import ReminderStorageMongo
                     self.storage = ReminderStorageMongo()
-                    logger.info('Using MongoDB for reminders storage')
+                    logger.info('Using MongoDB for reminders storage (db.reminder_storage_mongo)')
                 except Exception as e:
-                    logger.exception('Failed to initialize MongoDB storage, falling back to SQLite', exc_info=e)
-                    self.storage = ReminderStorage()
+                    # Render or some deploy environments may not have the repo root on PYTHONPATH,
+                    # causing `db.*` package imports to fail even though the file exists in the repo.
+                    # Try importing the top-level shim `reminder_storage_mongo` as a fallback.
+                    try:
+                        from reminder_storage_mongo import ReminderStorageMongo
+                        self.storage = ReminderStorageMongo()
+                        logger.info('Using MongoDB for reminders storage (fallback reminder_storage_mongo)')
+                    except Exception:
+                        logger.exception('Failed to initialize MongoDB storage via db.* and fallback, falling back to SQLite', exc_info=e)
+                        self.storage = ReminderStorage()
             else:
                 self.storage = ReminderStorage()
         except Exception:
