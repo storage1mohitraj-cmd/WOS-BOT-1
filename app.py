@@ -845,6 +845,12 @@ DICE_FACE_URLS = {
     6: "https://cdn.discordapp.com/attachments/1435569370389807144/1435589024147570708/6dice_1.png",
 }
 
+# DiceBattle asset overrides (can be changed to use different remote assets)
+# Small logo, background, and crossed-swords image (user-provided defaults)
+DICEBATTLE_LOGO_URL = "https://cdn.discordapp.com/attachments/1435569370389807144/1435683133319282890/unnamed_3.png?ex=6917679c&is=6916161c&hm=b3183f0fb1acff8df85655cfdf94f9fc9fa2906ba2a48f9ae9d0f8f1df43c90c"
+DICEBATTLE_BG_URL = "https://cdn.discordapp.com/attachments/1435569370389807144/1435676425779679364/1994.jpg?ex=6917615d&is=69160fdd&hm=8782563279de5becbf1e64d05775a71fe6c6aa60bba3d0cc6b553043f5dfa80e"
+DICEBATTLE_SWORD_URL = "https://cdn.discordapp.com/attachments/1435569370389807144/1435693707276845096/pngtree-crossed-swords-icon-combat-with-melee-weapons-duel-king-protect-vector-png-image_48129218-removebg-preview_2.png?ex=69177175&is=69161ff5&hm=e588ba312801c8036052d36005dd3f3b33d5f7cdbea8bdf4097a48a8e339f018"
+
 
 def build_codes_embed(codes_list):
     """Build a gift codes embed for a list of codes.
@@ -4397,7 +4403,7 @@ class DiceBattleView(discord.ui.View):
     """View that manages a two-player dice battle. Each player has one Roll button
     that only they can press. After both roll, the view declares a winner and
     disables the buttons."""
-    def __init__(self, challenger: discord.Member, opponent: discord.Member, *, timeout: float = None):
+    def __init__(self, challenger: discord.Member, opponent: discord.Member, *, bg_url: str = None, sword_url: str = None, logo_url: str = None, timeout: float = None):
         # Use a persistent view by default (timeout=None). We'll register the
         # specific view instance for the sent message with bot.add_view(...,
         # message_id=sent.id) so the view callbacks remain available across
@@ -4405,6 +4411,10 @@ class DiceBattleView(discord.ui.View):
         super().__init__(timeout=timeout)
         self.challenger = challenger
         self.opponent = opponent
+        # Optional asset overrides for image generation
+        self.bg_url = bg_url
+        self.sword_url = sword_url
+        self.logo_url = logo_url
         # store results as {user_id: int or None}
         self.results = {challenger.id: None, opponent.id: None}
         self.message: discord.Message | None = None
@@ -4481,7 +4491,7 @@ class DiceBattleView(discord.ui.View):
 
         return e
 
-    async def create_battle_image(self, left_face_url: str = None, right_face_url: str = None) -> discord.File:
+    async def create_battle_image(self, left_face_url: str = None, right_face_url: str = None, bg_url: str = None, sword_url: str = None, logo_url: str = None) -> discord.File:
         """Create a composite image showing both players' avatars with a crossed-swords
         emblem in the middle and optionally overlay dice-face images for left/right.
         Returns a discord.File ready to send as attachment.
@@ -4494,10 +4504,17 @@ class DiceBattleView(discord.ui.View):
         # Helper to fetch binary data for an avatar URL
         async def fetch_bytes(url: str) -> bytes:
             timeout = aiohttp.ClientTimeout(total=20)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url) as resp:
-                    if resp.status == 200:
-                        return await resp.read()
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(url) as resp:
+                        if resp.status == 200:
+                            try:
+                                return await resp.read()
+                            except Exception as e:
+                                logger.debug(f"Failed to read bytes from {url}: {e}")
+                                return None
+            except Exception as e:
+                logger.debug(f"Exception fetching bytes from {url}: {e}")
             return None
 
         # Get avatar URLs (use display_avatar which is HTTP(s) URL)
@@ -4540,10 +4557,15 @@ class DiceBattleView(discord.ui.View):
         left_img = left_img.resize((left_size, left_size), Image.LANCZOS)
         right_img = right_img.resize((right_size, right_size), Image.LANCZOS)
 
-        # Use the provided remote URLs for assets (Render-friendly)
+        # Use provided URLs (parameter) -> instance attr -> fallback to defaults
         default_bg_url = "https://cdn.discordapp.com/attachments/1435569370389807144/1435702034497278142/2208_w026_n002_2422b_p1_2422.jpg?ex=690ced37&is=690b9bb7&hm=04cdb75f595c5babb52fc3210fa548a02d3680e518728a1856429028ad5a3b65"
         default_sword_url = "https://cdn.discordapp.com/attachments/1435569370389807144/1435693707276845096/pngtree-crossed-swords-icon-combat-with-melee-weapons-duel-king-protect-vector-png-image_48129218-removebg-preview_2.png?ex=690ce575&is=690b93f5&hm=b564d747bfadcd5631911ce5e53710b70c7607410145e3c5ecc41a76fa55d5e8"
         default_logo_url = "https://cdn.discordapp.com/attachments/1435569370389807144/1435683133319282890/unnamed_3.png?ex=690cdb9c&is=690b8a1c&hm=e605500d0e061ee4983c68c30b68d3e285b03a88d31605ac65abf2b4df0ae028"
+
+        # resolve urls: prefer explicit call args, then instance attrs, then defaults
+        bg_url = bg_url or getattr(self, 'bg_url', None) or DICEBATTLE_BG_URL or default_bg_url
+        sword_url = sword_url or getattr(self, 'sword_url', None) or DICEBATTLE_SWORD_URL or default_sword_url
+        logo_url = logo_url or getattr(self, 'logo_url', None) or DICEBATTLE_LOGO_URL or default_logo_url
 
         canvas = Image.new('RGBA', (width, height), (40, 44, 52, 255))
 
@@ -4671,7 +4693,13 @@ class DiceBattleView(discord.ui.View):
                 async with aiohttp.ClientSession(timeout=timeout) as session:
                     async with session.get(url) as resp:
                         if resp.status == 200:
-                            return await resp.read()
+                            try:
+                                return await resp.read()
+                            except Exception as e:
+                                logger.debug(f"Failed to read face image bytes from {url}: {e}")
+                                return None
+                        else:
+                            logger.debug(f"Face image fetch returned {resp.status} for URL: {url}")
                 return None
 
             if left_face_url:
@@ -4848,7 +4876,7 @@ async def dicebattle(interaction: discord.Interaction, opponent: discord.Member)
             await interaction.response.send_message("You can't battle yourself.", ephemeral=True)
             return
 
-        view = DiceBattleView(interaction.user, opponent)
+        view = DiceBattleView(interaction.user, opponent, bg_url=DICEBATTLE_BG_URL, sword_url=DICEBATTLE_SWORD_URL, logo_url=DICEBATTLE_LOGO_URL)
         # Build embed; defer first because creating the composite image may take >3s
         embed = view.build_embed()
         try:
