@@ -1883,5 +1883,11 @@ class PaginatedChannelView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
 async def setup(bot):
-    conn = sqlite3.connect('db/alliance.sqlite')
-    await bot.add_cog(Alliance(bot, conn))
+    try:
+        conn = sqlite3.connect('db/alliance.sqlite')
+        cog = Alliance(bot, conn)
+        await bot.add_cog(cog)
+        logger.info(f"✓ Alliance cog loaded successfully")
+    except Exception as e:
+        logger.error(f"✗ Failed to setup Alliance cog: {e}", exc_info=True)
+        raise

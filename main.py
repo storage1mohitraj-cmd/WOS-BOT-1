@@ -996,7 +996,12 @@ if __name__ == "__main__":
     async def on_ready():
         try:
             print(f"{F.GREEN}Logged in as {F.CYAN}{bot.user}{R}")
+            # Debug: list loaded cogs
+            print(f"Loaded cogs: {list(bot.cogs.keys())}")
+            # Debug: list registered commands
+            print(f"Registered app commands: {[cmd.name for cmd in bot.tree.get_commands()]}")
             await bot.tree.sync()
+            print(f"Commands synced. Total commands after sync: {len(bot.tree.get_commands())}")
         except Exception as e:
             print(f"Error syncing commands: {e}")
 
