@@ -1,4 +1,0 @@
-[2025-11-09 15:47:31] Pre-check complete: 0 already exist, 1 to process
-[2025-11-09 15:47:35] Successfully added member - FID: 494333522, Nickname: Gιɳα, Level: 45
-[2025-11-09 18:39:51] Pre-check complete: 0 already exist, 1 to process
-[2025-11-09 18:39:55] Successfully added member - FID: 431568630, Nickname: M̶A̶G̶N̶U̶S̶, Level: 1
