@@ -1855,6 +1855,35 @@ async def on_message(message):
             history = conversation_history.get(user_id, [])
             system = {"role": "system", "content": get_system_prompt(user_name)}
             messages = [system] + history[-10:] + [{"role": "user", "content": question}]
+
+            # Quick deterministic handler: if user asks for current time in India, answer directly
+            try:
+                import re
+                if re.search(r"\btime in india\b|what(?:'s| is) the time in india|current time in india", question, flags=re.I):
+                    try:
+                        from datetime import datetime
+                        import pytz
+                        ist = datetime.now(pytz.timezone('Asia/Kolkata'))
+                        timestr = ist.strftime('%Y-%m-%d %H:%M:%S IST (UTC%z)')
+                        await message.channel.send(timestr)
+                        return
+                    except Exception:
+                        # If timezone libs missing, fall back to web-search path
+                        pass
+            except Exception:
+                pass
+
+            # Augment prompt with web search results for improved factuality
+            try:
+                from search_utils import fetch_search_results, inject_results_into_system
+                # Fetch top 3 results (non-blocking)
+                results = await fetch_search_results(question, max_results=3)
+                if results:
+                    messages = inject_results_into_system(messages, results, header="Web Search Results:")
+            except Exception:
+                # If augmentation fails, continue without search
+                pass
+
             async with message.channel.typing():
                 response = await make_request(messages=messages, max_tokens=1000, include_sheet_data=True)
 
@@ -2645,6 +2674,36 @@ async def ask(interaction: discord.Interaction, question: str):
             "content": get_system_prompt(user_name)
         }
         messages = [system] + history[-10:] + [{"role": "user", "content": question}]
+
+        # Quick deterministic handler: if user asks for current time in India, answer directly
+        try:
+            import re
+            if re.search(r"\btime in india\b|what(?:'s| is) the time in india|current time in india", question, flags=re.I):
+                try:
+                    from datetime import datetime
+                    import pytz
+                    ist = datetime.now(pytz.timezone('Asia/Kolkata'))
+                    timestr = ist.strftime('%Y-%m-%d %H:%M:%S IST (UTC%z)')
+                    # If this is an interaction flow, we should reply via followup (interaction is in scope here)
+                    try:
+                        await interaction.followup.send(timestr)
+                    except Exception:
+                        # Fallback: send to current channel
+                        await interaction.channel.send(timestr)
+                    return
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Augment prompt with web search results for improved factuality
+        try:
+            from search_utils import fetch_search_results, inject_results_into_system
+            results = await fetch_search_results(question, max_results=3)
+            if results:
+                messages = inject_results_into_system(messages, results, header="Web Search Results:")
+        except Exception:
+            pass
 
         # Make API request
         response = await make_request(

@@ -1,6 +1,20 @@
 import subprocess
 import sys
 import os
+import pprint
+
+# Startup debug: print working directory and a short sys.path preview so
+# Render logs can confirm the process cwd and import paths. This is
+# temporary and can be removed after debugging.
+try:
+    print("STARTUP DEBUG: CWD=", os.getcwd())
+    print("STARTUP DEBUG: sys.path (first 6 entries)=")
+    pprint.pprint(sys.path[:6])
+    # Print whether key env vars exist (don't print values)
+    print("STARTUP DEBUG: MONGO_URI set?", bool(os.getenv('MONGO_URI')))
+    print("STARTUP DEBUG: DEV_GUILD_ID set?", bool(os.getenv('DEV_GUILD_ID')))
+except Exception as _:
+    pass
 import shutil
 import stat
 
@@ -973,7 +987,7 @@ if __name__ == "__main__":
     create_tables()
 
     async def load_cogs():
-        cogs = ["olddb", "control", "alliance", "alliance_member_operations", "bot_operations", "logsystem", "support_operations", "gift_operations", "changes", "w", "wel", "other_features", "bear_trap", "id_channel", "backup_operations", "bear_trap_editor", "attendance", "attendance_report", "minister_schedule", "minister_menu"]
+        cogs = ["olddb", "control", "alliance", "alliance_member_operations", "bot_operations", "logsystem", "support_operations", "gift_operations", "changes", "w", "wel", "other_features", "bear_trap", "id_channel", "backup_operations", "bear_trap_editor", "attendance", "attendance_report", "minister_schedule", "minister_menu", "web_search"]
         
         failed_cogs = []
         
