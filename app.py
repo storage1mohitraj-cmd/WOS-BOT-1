@@ -3579,43 +3579,43 @@ async def reminderdashboard(interaction: discord.Interaction):
                     except Exception:
                         pass
 
-        @discord.ui.button(label="Delete", style=discord.ButtonStyle.secondary, custom_id="rd_delete", emoji="🗑️")
-        async def delete_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
-            try:
-                # Fetch user's active reminders
-                user_id = str(button_interaction.user.id)
-                reminders = reminder_system.storage.get_user_reminders(user_id, limit=25)
-                if not reminders:
-                    await button_interaction.response.send_message("You don't have any active reminders to delete.", ephemeral=True)
-                    return
-
-                # Create a select with reminders and send ephemeral message
-                select = ReminderDeleteSelect(reminders)
-                v = discord.ui.View()
-                v.add_item(select)
-                header = discord.Embed(title="🗑️ Delete Reminder", description="Choose the reminder number (left) then confirm.", color=0x2f3136)
-                await button_interaction.response.send_message(embed=header, view=v, ephemeral=True)
-            except Exception as e:
-                logger.error(f"Failed to open delete reminder select: {e}")
+            @discord.ui.button(label="Delete", style=discord.ButtonStyle.secondary, custom_id="rd_delete", emoji="🗑️")
+            async def delete_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
                 try:
-                    await button_interaction.response.send_message("Failed to open reminder deletion UI.", ephemeral=True)
-                except Exception:
-                    pass
+                    # Fetch user's active reminders
+                    user_id = str(button_interaction.user.id)
+                    reminders = reminder_system.storage.get_user_reminders(user_id, limit=25)
+                    if not reminders:
+                        await button_interaction.response.send_message("You don't have any active reminders to delete.", ephemeral=True)
+                        return
 
-        @discord.ui.button(label="Timezone", style=discord.ButtonStyle.success, custom_id="rd_tz", emoji="🌐")
-        async def tz_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
-            try:
-                select = TimezoneSelect()
-                v = discord.ui.View()
-                v.add_item(select)
-                embed = discord.Embed(title="🌐 Select Timezone", description="Choose how times are displayed for your reminders.", color=0x2f3136)
-                await button_interaction.response.send_message(embed=embed, view=v, ephemeral=True)
-            except Exception as e:
-                logger.error(f"Failed to open timezone select: {e}")
+                    # Create a select with reminders and send ephemeral message
+                    select = ReminderDeleteSelect(reminders)
+                    v = discord.ui.View()
+                    v.add_item(select)
+                    header = discord.Embed(title="🗑️ Delete Reminder", description="Choose the reminder number (left) then confirm.", color=0x2f3136)
+                    await button_interaction.response.send_message(embed=header, view=v, ephemeral=True)
+                except Exception as e:
+                    logger.error(f"Failed to open delete reminder select: {e}")
+                    try:
+                        await button_interaction.response.send_message("Failed to open reminder deletion UI.", ephemeral=True)
+                    except Exception:
+                        pass
+
+            @discord.ui.button(label="Timezone", style=discord.ButtonStyle.success, custom_id="rd_tz", emoji="🌐")
+            async def tz_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
                 try:
-                    await button_interaction.response.send_message("Failed to open timezone selection.", ephemeral=True)
-                except Exception:
-                    pass
+                    select = TimezoneSelect()
+                    v = discord.ui.View()
+                    v.add_item(select)
+                    embed = discord.Embed(title="🌐 Select Timezone", description="Choose how times are displayed for your reminders.", color=0x2f3136)
+                    await button_interaction.response.send_message(embed=embed, view=v, ephemeral=True)
+                except Exception as e:
+                    logger.error(f"Failed to open timezone select: {e}")
+                    try:
+                        await button_interaction.response.send_message("Failed to open timezone selection.", ephemeral=True)
+                    except Exception:
+                        pass
 
         view = ReminderDashboardView()
     except Exception as e:
