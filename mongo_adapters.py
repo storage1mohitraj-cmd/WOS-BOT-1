@@ -18,10 +18,10 @@ try:
     from db.mongo_adapters import *  # type: ignore
     # Re-exported names will come from the real module
     __all__ = [
-        'mongo_enabled', 'UserTimezonesAdapter', 'BirthdaysAdapter', 'UserProfilesAdapter', 'GiftcodeStateAdapter', 'GiftCodesAdapter'
+        'mongo_enabled', 'UserTimezonesAdapter', 'BirthdaysAdapter', 'UserProfilesAdapter', 'GiftcodeStateAdapter', 'GiftCodesAdapter', 'AllianceMembersAdapter'
     ]
-except Exception:
-    logging.getLogger(__name__).warning('db.mongo_adapters import failed; using local fallback shim')
+except Exception as e:
+    logging.getLogger(__name__).warning('db.mongo_adapters import failed: %s; using local fallback shim', e)
 
     def mongo_enabled() -> bool:
         return False
@@ -93,7 +93,13 @@ except Exception:
         def delete(code: str) -> bool:
             return False
 
+    class AllianceMembersAdapter(_FallbackAdapter):
+        @staticmethod
+        def load_all():
+            return {}
+
     __all__ = [
-        'mongo_enabled', 'UserTimezonesAdapter', 'BirthdaysAdapter', 'UserProfilesAdapter', 'GiftcodeStateAdapter', 'GiftCodesAdapter'
+        'mongo_enabled', 'UserTimezonesAdapter', 'BirthdaysAdapter', 'UserProfilesAdapter', 'GiftcodeStateAdapter', 'GiftCodesAdapter', 'AllianceMembersAdapter'
     ]
+
 

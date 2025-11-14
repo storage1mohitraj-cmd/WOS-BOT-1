@@ -1,5 +1,9 @@
 __pycache__
-db
+# Track Python source files in db/, but ignore databases and cache
+db/__pycache__
+db/*.sqlite*
+db/*.db
+db/backups/
 db.bak
 log
 bot_token.txt
