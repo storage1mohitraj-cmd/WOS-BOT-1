@@ -3,7 +3,8 @@ from aiohttp import web
 from datetime import datetime
 import logging
 import asyncio
-import os
+import sys
+import importlib.util
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,13 +55,33 @@ async def start_health_server():
                 except Exception as e:
                     return {'ok': False, 'error': str(e)}
 
-            try:
-                ping_result = await loop.run_in_executor(None, _ping_mongo)
-                resp['mongo_ping'] = ping_result
-            except Exception as e:
-                resp['mongo_ping'] = {'ok': False, 'error': str(e)}
+                    try:
+                        ping_result = await loop.run_in_executor(None, _ping_mongo)
+                        resp['mongo_ping'] = ping_result
+                    except Exception as e:
+                        resp['mongo_ping'] = {'ok': False, 'error': str(e)}
 
-        return web.json_response(resp)
+            # Add diagnostic info about import resolution and sys.path so Render logs
+            # can show why `db.mongo_adapters` might not be importable.
+            try:
+                resp['sys_path'] = sys.path
+            except Exception:
+                resp['sys_path'] = []
+
+            def _spec_info(name: str):
+                try:
+                    spec = importlib.util.find_spec(name)
+                    if not spec:
+                        return None
+                    return {'name': name, 'origin': getattr(spec, 'origin', None), 'loader': str(getattr(spec, 'loader', None))}
+                except Exception as e:
+                    return {'error': str(e)}
+
+            resp['spec_db'] = _spec_info('db')
+            resp['spec_db_mongo_adapters'] = _spec_info('db.mongo_adapters')
+            resp['spec_toplevel_mongo_adapters'] = _spec_info('mongo_adapters')
+
+            return web.json_response(resp)
 
     app.add_routes([
         web.get('/', handle_root),
