@@ -24,6 +24,7 @@ class Alliance(commands.Cog):
         self._check_and_add_column()
 
     def _create_table(self):
+        # Core alliance list
         self.c.execute("""
             CREATE TABLE IF NOT EXISTS alliance_list (
                 alliance_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,7 +32,87 @@ class Alliance(commands.Cog):
                 discord_server_id INTEGER
             )
         """)
-        self.conn.commit()
+
+        # Settings for alliances (may be stored in SQLite for legacy/partial flows)
+        try:
+            self.c.execute("""
+                CREATE TABLE IF NOT EXISTS alliancesettings (
+                    alliance_id INTEGER PRIMARY KEY,
+                    channel_id INTEGER,
+                    interval INTEGER DEFAULT 0
+                )
+            """)
+        except Exception:
+            # Best-effort: if creating this table fails, other code will handle exceptions
+            pass
+
+        # Ensure legacy/local DB tables used elsewhere exist (best-effort).
+        try:
+            # giftcode DB tables
+            self.c_giftcode.execute("""
+                CREATE TABLE IF NOT EXISTS giftcodecontrol (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    alliance_id INTEGER,
+                    status INTEGER
+                )
+            """)
+
+            self.c_giftcode.execute("""
+                CREATE TABLE IF NOT EXISTS giftcode_channel (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    alliance_id INTEGER,
+                    channel_id INTEGER
+                )
+            """)
+        except Exception:
+            pass
+
+        try:
+            # users table (minimal shape to allow counts/queries)
+            self.c_users.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    fid TEXT,
+                    alliance INTEGER
+                )
+            """)
+        except Exception:
+            pass
+
+        try:
+            # settings DB: admin + adminserver used by settings flow
+            self.c_settings.execute("""
+                CREATE TABLE IF NOT EXISTS admin (
+                    id INTEGER PRIMARY KEY,
+                    is_initial INTEGER DEFAULT 0
+                )
+            """)
+            self.c_settings.execute("""
+                CREATE TABLE IF NOT EXISTS adminserver (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    alliances_id INTEGER
+                )
+            """)
+        except Exception:
+            pass
+
+        # Commit all changes where possible
+        try:
+            self.conn.commit()
+        except Exception:
+            pass
+        try:
+            self.conn_giftcode.commit()
+        except Exception:
+            pass
+        try:
+            self.conn_users.commit()
+        except Exception:
+            pass
+        try:
+            self.conn_settings.commit()
+        except Exception:
+            pass
 
     def _check_and_add_column(self):
         self.c.execute("PRAGMA table_info(alliance_list)")
