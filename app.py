@@ -299,6 +299,76 @@ except Exception:
     # Best-effort - if this fails, logging may still error but we avoid crashing at import
     pass
 
+
+# --- Improved signal handling for graceful shutdown diagnostics -----------------
+def _log_tasks_and_tracebacks():
+    """Return a short diagnostic string of currently running asyncio tasks and their stacks."""
+    out_lines = []
+    try:
+        loop = asyncio.get_event_loop()
+        tasks = list(asyncio.all_tasks(loop))
+        out_lines.append(f"Active asyncio tasks: {len(tasks)}")
+        for t in tasks[:50]:
+            out_lines.append(f"- Task: {t.get_name() if hasattr(t, 'get_name') else repr(t)} state={t._state if hasattr(t, '_state') else 'unknown'}")
+            try:
+                stack = t.get_stack()
+                if stack:
+                    out_lines.append("  Stack:")
+                    for fr in stack[-6:]:
+                        out_lines.append(f"    {fr.f_code.co_filename}:{fr.f_lineno} {fr.f_code.co_name}")
+            except Exception:
+                pass
+    except Exception as e:
+        out_lines.append(f"Failed to enumerate tasks: {e}")
+    return "\n".join(out_lines)
+
+
+def _signal_handler(signum, frame):
+    # Log detailed info to help debug why Render sent SIGTERM/SIGINT
+    try:
+        logger.warning(f"Received signal {signum}; shutting down gracefully...")
+    except Exception:
+        print(f"Received signal {signum}; shutting down gracefully...")
+
+    try:
+        import traceback as _tb
+        tb = _tb.format_stack(frame)
+        logger.warning("Stack at signal time:\n" + "".join(tb))
+    except Exception:
+        pass
+
+    try:
+        info = _log_tasks_and_tracebacks()
+        logger.warning("Asyncio task snapshot:\n" + info)
+    except Exception:
+        pass
+
+    # Try to stop discord client cleanly if available
+    try:
+        # `bot` is defined later; use globals to avoid import cycles
+        b = globals().get('bot')
+        if b is not None and hasattr(b, 'close'):
+            # schedule close on loop
+            loop = asyncio.get_event_loop()
+            try:
+                loop.create_task(b.close())
+            except Exception:
+                try:
+                    b.close()
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+# Register handlers early so we capture signals
+try:
+    signal.signal(signal.SIGTERM, _signal_handler)
+    signal.signal(signal.SIGINT, _signal_handler)
+except Exception:
+    # Not all platforms support signal.signal in the same way (Windows vs Unix)
+    pass
+
+
 # Feedback state file (optional persistent feedback channel)
 FEEDBACK_STATE_PATH = Path(__file__).parent / "feedback_state.json"
 FEEDBACK_LOG_PATH = Path(__file__).parent / "feedback_log.txt"
