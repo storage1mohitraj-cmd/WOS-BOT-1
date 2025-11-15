@@ -9,6 +9,7 @@ import hashlib
 import aiohttp
 import ssl
 from discord.ext import tasks
+from db.mongo_adapters import mongo_enabled, AllianceMembersAdapter, UserProfilesAdapter
 
 SECRET = "tB87#kPtkxqOS2"
 
@@ -51,6 +52,59 @@ class IDChannel(commands.Cog):
                       UNIQUE(guild_id, channel_id))''')
         conn.commit()
         conn.close()
+
+    # --- Storage helpers that prefer Mongo when available ---
+    def _get_member_alliance(self, fid: int):
+        try:
+            if mongo_enabled() and AllianceMembersAdapter is not None:
+                doc = AllianceMembersAdapter.get_member(str(fid))
+                if doc and (doc.get('alliance') is not None or doc.get('alliance_id') is not None):
+                    return int(doc.get('alliance') or doc.get('alliance_id'))
+        except Exception:
+            pass
+
+        try:
+            with sqlite3.connect('db/users.sqlite') as users_db:
+                cursor = users_db.cursor()
+                cursor.execute("SELECT alliance FROM users WHERE fid = ?", (fid,))
+                r = cursor.fetchone()
+                return r[0] if r else None
+        except Exception:
+            return None
+
+    def _upsert_member_from_api(self, fid: int, nickname: str, furnace_lv: int, kid, stove_lv_content, alliance_id: int, avatar_image=None) -> bool:
+        payload = {
+            'fid': str(fid),
+            'nickname': nickname,
+            'furnace_lv': int(furnace_lv) if furnace_lv is not None else 0,
+            'kid': kid,
+            'stove_lv_content': stove_lv_content,
+            'alliance': int(alliance_id),
+            'avatar_image': avatar_image,
+        }
+        try:
+            if mongo_enabled() and AllianceMembersAdapter is not None:
+                return AllianceMembersAdapter.upsert_member(str(fid), payload)
+        except Exception:
+            pass
+
+        # Fallback to SQLite insert
+        try:
+            with sqlite3.connect('db/users.sqlite') as users_db:
+                cursor = users_db.cursor()
+                cursor.execute("SELECT alliance FROM users WHERE fid = ?", (fid,))
+                if cursor.fetchone():
+                    return False
+                cursor.execute("""
+                    INSERT INTO users (fid, nickname, furnace_lv, kid, stove_lv_content, alliance)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (fid, nickname, furnace_lv, kid, stove_lv_content, alliance_id))
+                users_db.commit()
+                return True
+        except sqlite3.IntegrityError:
+            return False
+        except Exception:
+            return False
 
     async def log_action(self, action_type: str, user_id: int, guild_id: int, details: dict):
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -180,28 +234,30 @@ class IDChannel(commands.Cog):
 
     async def process_fid(self, message, fid, alliance_id):
         try:
-            with sqlite3.connect('db/users.sqlite') as users_db:
-                cursor = users_db.cursor()
-                cursor.execute("SELECT alliance FROM users WHERE fid = ?", (fid,))
-                existing_alliance = cursor.fetchone()
-                
-                if existing_alliance:
-                    if existing_alliance[0] == alliance_id:
-                        await message.add_reaction('⚠️')
-                        await message.reply(f"This FID ({fid}) is already registered in this alliance!", delete_after=10)
-                        return
-                    else:
-                        with sqlite3.connect('db/alliance.sqlite') as alliance_db:
-                            alliance_cursor = alliance_db.cursor()
-                            alliance_cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (existing_alliance[0],))
-                            alliance_name = alliance_cursor.fetchone()
-                        
-                        await message.add_reaction('⚠️')
-                        await message.reply(
-                            f"This FID ({fid}) is already registered in another alliance: `{alliance_name[0] if alliance_name else 'Unknown Alliance'}`",
-                            delete_after=10
-                        )
-                        return
+            # Check if FID already registered (prefers Mongo)
+            existing_alliance = None
+            try:
+                existing_alliance = self._get_member_alliance(fid)
+            except Exception:
+                existing_alliance = None
+
+            if existing_alliance:
+                if int(existing_alliance) == int(alliance_id):
+                    await message.add_reaction('⚠️')
+                    await message.reply(f"This FID ({fid}) is already registered in this alliance!", delete_after=10)
+                    return
+                else:
+                    with sqlite3.connect('db/alliance.sqlite') as alliance_db:
+                        alliance_cursor = alliance_db.cursor()
+                        alliance_cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (existing_alliance,))
+                        alliance_name = alliance_cursor.fetchone()
+
+                    await message.add_reaction('⚠️')
+                    await message.reply(
+                        f"This FID ({fid}) is already registered in another alliance: `{alliance_name[0] if alliance_name else 'Unknown Alliance'}`",
+                        delete_after=10
+                    )
+                    return
 
             max_retries = 3
             retry_delay = 60
@@ -250,23 +306,11 @@ class IDChannel(commands.Cog):
                                     kid = data['data'].get('kid', None)
                                     avatar_image = data['data'].get('avatar_image', None)
 
-                                    try:
-                                        with sqlite3.connect('db/users.sqlite') as users_db:
-                                            cursor = users_db.cursor()
-                                            cursor.execute("SELECT alliance FROM users WHERE fid = ?", (fid,))
-                                            if cursor.fetchone():
-                                                await message.add_reaction('⚠️')
-                                                await message.reply(f"This FID ({fid}) was added by another process!", delete_after=10)
-                                                return
-                                                
-                                            cursor.execute("""
-                                                INSERT INTO users (fid, nickname, furnace_lv, kid, stove_lv_content, alliance)
-                                                VALUES (?, ?, ?, ?, ?, ?)
-                                            """, (fid, nickname, furnace_lv, kid, stove_lv_content, alliance_id))
-                                            users_db.commit()
-                                    except sqlite3.IntegrityError:
+                                    # Persist member data (Mongo preferred, SQLite fallback)
+                                    ok = self._upsert_member_from_api(fid, nickname, furnace_lv, kid, stove_lv_content, alliance_id, avatar_image)
+                                    if not ok:
                                         await message.add_reaction('⚠️')
-                                        await message.reply(f"This FID ({fid}) was added by another process!", delete_after=10)
+                                        await message.reply(f"This FID ({fid}) was added by another process or failed to save!", delete_after=10)
                                         return
 
                                     await message.add_reaction('✅')

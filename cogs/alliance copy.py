@@ -1790,5 +1790,7 @@ class PaginatedChannelView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
 async def setup(bot):
-    conn = sqlite3.connect('db/alliance.sqlite')
-    await bot.add_cog(Alliance(bot, conn))
+    # Disabled: this is a copied/backup file that would register duplicate
+    # app commands (e.g. `/settings`) and cause CommandAlreadyRegistered errors.
+    # The real `alliance` cog is loaded from `cogs/alliance.py`.
+    return

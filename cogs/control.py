@@ -9,6 +9,12 @@ import traceback
 import logging
 from logging.handlers import RotatingFileHandler
 from .login_handler import LoginHandler
+try:
+    from db.mongo_adapters import mongo_enabled, AllianceMembersAdapter, AllianceMetadataAdapter
+except Exception:
+    mongo_enabled = lambda: False
+    AllianceMembersAdapter = None
+    AllianceMetadataAdapter = None
 
 level_mapping = {
     31: "30-1", 32: "30-2", 33: "30-3", 34: "30-4",
@@ -110,7 +116,20 @@ class Control(commands.Cog):
         """Safely remove an invalid FID from the database with logging"""
         try:
             async with self.db_lock:
-                # Get user info before deletion for logging
+                # Prefer Mongo deletion when enabled
+                try:
+                    if mongo_enabled() and AllianceMembersAdapter is not None:
+                        doc = AllianceMembersAdapter.get_member(str(fid))
+                        if doc:
+                            nickname = doc.get('nickname')
+                            deleted = AllianceMembersAdapter.delete_member(str(fid))
+                            if deleted:
+                                self.logger.warning(f"[AUTO-CLEANUP] Removed invalid FID {fid} (nickname: {nickname}) - Reason: {reason}")
+                                return True, nickname
+                except Exception:
+                    pass
+
+                # Fallback to SQLite deletion
                 self.cursor_users.execute("SELECT nickname, alliance FROM users WHERE fid = ?", (fid,))
                 user_info = self.cursor_users.fetchone()
                 
@@ -129,19 +148,86 @@ class Control(commands.Cog):
             self.logger.error(f"Failed to remove invalid FID {fid}: {str(e)}")
             return False, None
 
+    # --- Mongo-aware helpers ---
+    def _get_users_by_alliance(self, alliance_id):
+        try:
+            if mongo_enabled() and AllianceMembersAdapter is not None:
+                docs = AllianceMembersAdapter.get_all_members() or []
+                users = []
+                for d in docs:
+                    try:
+                        a = d.get('alliance') if d.get('alliance') is not None else d.get('alliance_id')
+                        if a is None:
+                            continue
+                        if str(a) == str(alliance_id) or a == alliance_id:
+                            fid = d.get('fid') or d.get('_id')
+                            nickname = d.get('nickname') or ''
+                            furnace_lv = int(d.get('furnace_lv') or d.get('stove_lv') or 0)
+                            stove_lv_content = d.get('stove_lv_content') if 'stove_lv_content' in d else d.get('stove_lv_content', None)
+                            kid = d.get('kid', 0)
+                            users.append((fid, nickname, furnace_lv, stove_lv_content, kid))
+                    except Exception:
+                        continue
+                return users
+        except Exception:
+            pass
+
+        try:
+            self.cursor_users.execute("SELECT fid, nickname, furnace_lv, stove_lv_content, kid FROM users WHERE alliance = ?", (alliance_id,))
+            return self.cursor_users.fetchall()
+        except Exception:
+            return []
+
+    def _get_alliance_name(self, alliance_id):
+        try:
+            if mongo_enabled() and AllianceMetadataAdapter is not None:
+                alliances = AllianceMetadataAdapter.get_metadata('alliances') or {}
+                v = alliances.get(str(alliance_id)) if isinstance(alliances, dict) else None
+                if v:
+                    return v.get('name')
+        except Exception:
+            pass
+
+        try:
+            self.cursor_alliance.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (alliance_id,))
+            r = self.cursor_alliance.fetchone()
+            return r[0] if r else None
+        except Exception:
+            return None
+
+    def _load_alliancesettings(self):
+        try:
+            if mongo_enabled() and AllianceMetadataAdapter is not None:
+                data = AllianceMetadataAdapter.get_metadata('alliancesettings') or {}
+                out = {}
+                for k, v in (data.items() if isinstance(data, dict) else []):
+                    try:
+                        aid = int(k)
+                        ch = int(v.get('channel_id')) if v.get('channel_id') is not None else None
+                        interval = int(v.get('interval')) if v.get('interval') is not None else 0
+                        out[aid] = (ch, interval)
+                    except Exception:
+                        continue
+                return out
+        except Exception:
+            pass
+
+        try:
+            self.cursor_alliance.execute("SELECT alliance_id, channel_id, interval FROM alliancesettings")
+            return {aid: (ch, interval) for aid, ch, interval in self.cursor_alliance.fetchall()}
+        except Exception:
+            return {}
+
     async def check_agslist(self, channel, alliance_id, interaction=None):
         async with self.db_lock:
-            self.cursor_users.execute("SELECT fid, nickname, furnace_lv, stove_lv_content, kid FROM users WHERE alliance = ?", (alliance_id,))
-            users = self.cursor_users.fetchall()
-
+            users = self._get_users_by_alliance(alliance_id)
             if not users:
                 return
 
         total_users = len(users)
         checked_users = 0
 
-        self.cursor_alliance.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (alliance_id,))
-        alliance_name = self.cursor_alliance.fetchone()[0]
+        alliance_name = self._get_alliance_name(alliance_id) or f"Alliance {alliance_id}"
 
         start_time = datetime.now()
         self.logger.info(f"{alliance_name} Alliance Control started at {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -395,19 +481,14 @@ class Control(commands.Cog):
             while self.is_running.get(alliance_id, False):
                 try:
                     async with self.db_lock:
-                        self.cursor_alliance.execute("""
-                            SELECT interval 
-                            FROM alliancesettings 
-                            WHERE alliance_id = ?
-                        """, (alliance_id,))
-                        result = self.cursor_alliance.fetchone()
-                        
-                        if not result or result[0] == 0:
+                        settings = self._load_alliancesettings()
+                        entry = settings.get(int(alliance_id))
+                        if not entry or entry[1] == 0:
                             print(f"[CONTROL] Stopping checks for alliance {alliance_id} - interval disabled")
                             self.is_running[alliance_id] = False
                             break
-                        
-                        new_interval = result[0]
+
+                        new_interval = entry[1]
                         if new_interval != current_interval:
                             print(f"[CONTROL] Interval changed for alliance {alliance_id}: {current_interval} -> {new_interval}")
                             self.is_running[alliance_id] = False
@@ -459,12 +540,8 @@ class Control(commands.Cog):
             self.is_running.clear()
 
             async with self.db_lock:
-                self.cursor_alliance.execute("""
-                    SELECT alliance_id, channel_id, interval 
-                    FROM alliancesettings
-                    WHERE interval > 0
-                """)
-                alliances = self.cursor_alliance.fetchall()
+                settings = self._load_alliancesettings()
+                alliances = [(aid, ch, interval) for aid, (ch, interval) in settings.items() if interval > 0]
 
                 if not alliances:
                     print("[CONTROL] No alliances with intervals found")
@@ -505,11 +582,7 @@ class Control(commands.Cog):
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             async with self.db_lock:
-                self.cursor_alliance.execute("SELECT alliance_id, channel_id, interval FROM alliancesettings")
-                current_settings = {
-                    alliance_id: (channel_id, interval)
-                    for alliance_id, channel_id, interval in self.cursor_alliance.fetchall()
-                }
+                current_settings = self._load_alliancesettings()
 
                 for alliance_id, (channel_id, interval) in current_settings.items():
                     task_exists = alliance_id in self.alliance_tasks
