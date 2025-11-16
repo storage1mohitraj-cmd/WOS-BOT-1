@@ -32,19 +32,23 @@ class GiftCodeAPI:
         self.max_backoff_time = 300
         self.current_backoff = self.error_backoff_time
         
-        # Check if MongoDB is available
-        self.mongo_enabled = bool(os.getenv('MONGO_URI'))
+        # Check if MongoDB is available (env var + adapter readiness)
+        try:
+            from mongo_adapters import mongo_enabled as _mongo_enabled
+            self.mongo_enabled = bool(os.getenv('MONGO_URI')) and bool(_mongo_enabled())
+        except Exception:
+            self.mongo_enabled = False
         
         if self.mongo_enabled:
-            # Import MongoDB adapter
+            # Import MongoDB adapter using shim for reliable access on Render
             try:
-                from db.mongo_adapters import GiftCodesAdapter
+                from mongo_adapters import GiftCodesAdapter
                 self.gift_codes_adapter = GiftCodesAdapter
                 self.logger = logging.getLogger("gift_operationsapi")
                 self.logger.info("[GIFTCODES] ✅ MongoDB enabled - Using GiftCodesAdapter for all operations")
             except ImportError as e:
                 self.logger = logging.getLogger("gift_operationsapi")
-                self.logger.error(f"[GIFTCODES] Failed to import GiftCodesAdapter: {e}")
+                self.logger.error(f"[GIFTCODES] Failed to import GiftCodesAdapter via shim: {e}")
                 self.mongo_enabled = False
         
         if not self.mongo_enabled:

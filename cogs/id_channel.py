@@ -9,7 +9,7 @@ import hashlib
 import aiohttp
 import ssl
 from discord.ext import tasks
-from db.mongo_adapters import mongo_enabled, AllianceMembersAdapter, UserProfilesAdapter
+from mongo_adapters import mongo_enabled, AllianceMembersAdapter, UserProfilesAdapter
 
 SECRET = "tB87#kPtkxqOS2"
 
@@ -826,4 +826,4 @@ class IDChannelView(discord.ui.View):
             )
 
 async def setup(bot):
-    await bot.add_cog(IDChannel(bot)) 
+    await bot.add_cog(IDChannel(bot))
