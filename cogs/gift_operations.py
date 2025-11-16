@@ -2236,10 +2236,75 @@ class GiftOperations(commands.Cog):
         codes = self.cursor.fetchall()
         
         if not codes:
-            await interaction.response.send_message(
-                "No active gift codes found in the database.",
-                ephemeral=True
+            # Fallback: fetch active codes from website and queue auto redemption
+            try:
+                from gift_codes import get_active_gift_codes
+            except Exception:
+                get_active_gift_codes = None
+
+            fetched_codes = None
+            if get_active_gift_codes:
+                try:
+                    fetched_codes = await get_active_gift_codes()
+                except Exception as e:
+                    self.logger.exception(f"Error fetching active gift codes from website: {e}")
+
+            if not fetched_codes:
+                await interaction.response.send_message(
+                    "No active gift codes found (database empty and website fetch returned none).",
+                    ephemeral=True
+                )
+                return
+
+            # Queue validation and auto redemption for alliances with auto enabled
+            from datetime import datetime
+            import sqlite3 as _sqlite
+
+            embed = discord.Embed(
+                title="🎁 Active Gift Codes (Fetched)",
+                description=(
+                    "Fetched from website and queued for auto redemption for enabled alliances."
+                ),
+                color=discord.Color.green()
             )
+
+            for item in fetched_codes:
+                code_str = (item.get('code') or '').strip()
+                expiry = item.get('expiry', 'Unknown')
+                if not code_str:
+                    continue
+
+                # Upsert into DB as pending so it appears in future lists
+                try:
+                    date_str = datetime.now().strftime("%Y-%m-%d")
+                    self.cursor.execute(
+                        "INSERT OR IGNORE INTO gift_codes (giftcode, date, validation_status) VALUES (?, ?, ?)",
+                        (code_str, date_str, 'pending')
+                    )
+                    self.conn.commit()
+                except _sqlite.Error:
+                    # Non-fatal; continue
+                    pass
+
+                # Queue for validation; auto-use will be triggered upon validation
+                try:
+                    await self.add_to_validation_queue(
+                        giftcode=code_str,
+                        source='website',
+                        operation_type='automatic',
+                        alliance_id=None,
+                        interaction=None
+                    )
+                except Exception as e:
+                    self.logger.exception(f"Failed to queue fetched code '{code_str}': {e}")
+
+                embed.add_field(
+                    name=f"Code: {code_str}",
+                    value=f"Expiry: {expiry}",
+                    inline=False
+                )
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -5054,4 +5119,4 @@ class OCRSettingsView(discord.ui.View):
             await progress_message.edit(content=f"❌ {message_from_task}")
 
 async def setup(bot):
-    await bot.add_cog(GiftOperations(bot)) 
+    await bot.add_cog(GiftOperations(bot))

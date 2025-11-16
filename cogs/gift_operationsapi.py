@@ -422,7 +422,10 @@ class GiftCodeAPI:
                                             self.logger.info(f"Code {db_code} already exists in API (verified via check)")
                                             continue
 
-                                        date_obj = datetime.strptime(db_date, "%Y-%m-%d")
+                                        # Some DB entries may store ISO timestamps like 'YYYY-MM-DDTHH:MM:SS.ssssss'.
+                                        # Normalize to date-only before parsing to avoid ValueError.
+                                        date_str_clean = db_date[:10] if isinstance(db_date, str) else str(db_date)[:10]
+                                        date_obj = datetime.strptime(date_str_clean, "%Y-%m-%d")
                                         formatted_date = date_obj.strftime("%d.%m.%Y")
                                         
                                         data = {
