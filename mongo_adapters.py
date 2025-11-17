@@ -76,6 +76,35 @@ except Exception as e:
         def set_state(state: Dict[str, Any]) -> bool:
             return False
 
+    class AdminPermissionsAdapter(_FallbackAdapter):
+        @staticmethod
+        def upsert_admin(user_id: int, is_initial: int = 0) -> bool:
+            return False
+
+        @staticmethod
+        def is_global_admin(user_id: int) -> bool:
+            return False
+
+        @staticmethod
+        def get_global_admin_ids() -> list:
+            return []
+
+        @staticmethod
+        def get_admin_alliance_ids(user_id: int) -> list:
+            return []
+
+        @staticmethod
+        def add_permission(user_id: int, alliance_id: int) -> bool:
+            return False
+
+        @staticmethod
+        def remove_permission(user_id: int, alliance_id: int) -> bool:
+            return False
+
+        @staticmethod
+        def list_permissions() -> list:
+            return []
+
     class GiftCodesAdapter(_FallbackAdapter):
         @staticmethod
         def get_all():
@@ -93,13 +122,21 @@ except Exception as e:
         def delete(code: str) -> bool:
             return False
 
+        @staticmethod
+        def get_usage_count(code: str) -> int:
+            return 0
+
+        @staticmethod
+        def increment_usage(code: str, fid: str, status: str) -> bool:
+            return False
+
     class AllianceMembersAdapter(_FallbackAdapter):
         @staticmethod
         def load_all():
             return {}
 
     __all__ = [
-        'mongo_enabled', 'UserTimezonesAdapter', 'BirthdaysAdapter', 'UserProfilesAdapter', 'GiftcodeStateAdapter', 'GiftCodesAdapter', 'AllianceMembersAdapter'
+        'mongo_enabled', 'UserTimezonesAdapter', 'BirthdaysAdapter', 'UserProfilesAdapter', 'GiftcodeStateAdapter', 'AdminPermissionsAdapter', 'GiftCodesAdapter', 'AllianceMembersAdapter'
     ]
 
 

@@ -42,8 +42,9 @@ class GiftCodeAPI:
         if self.mongo_enabled:
             # Import MongoDB adapter using shim for reliable access on Render
             try:
-                from mongo_adapters import GiftCodesAdapter
+                from mongo_adapters import GiftCodesAdapter, AdminPermissionsAdapter
                 self.gift_codes_adapter = GiftCodesAdapter
+                self.admin_adapter = AdminPermissionsAdapter
                 self.logger = logging.getLogger("gift_operationsapi")
                 self.logger.info("[GIFTCODES] ✅ MongoDB enabled - Using GiftCodesAdapter for all operations")
             except ImportError as e:
@@ -361,8 +362,16 @@ class GiftCodeAPI:
                                                 validation_status = "⚠️ Validation unavailable"
                                                 auto_alliances = []
 
-                                            self.settings_cursor.execute("SELECT id FROM admin WHERE is_initial = 1")
-                                            admin_ids = self.settings_cursor.fetchall()
+                                            # Notify global admins about new or invalidated codes
+                                            if self.mongo_enabled:
+                                                try:
+                                                    admin_ids = self.admin_adapter.get_global_admin_ids()
+                                                except Exception:
+                                                    admin_ids = []
+                                            else:
+                                                self.settings_cursor.execute("SELECT id FROM admin WHERE is_initial = 1")
+                                                admin_ids = [row[0] for row in self.settings_cursor.fetchall()]
+
                                             if admin_ids:
                                                 admin_embed = discord.Embed(
                                                     title="🎁 New Gift Code Found!",
@@ -381,11 +390,11 @@ class GiftCodeAPI:
 
                                                 for admin_id in admin_ids:
                                                     try:
-                                                        admin_user = await self.bot.fetch_user(admin_id[0])
+                                                        admin_user = await self.bot.fetch_user(int(admin_id))
                                                         if admin_user:
                                                             await admin_user.send(embed=admin_embed)
                                                     except Exception as e:
-                                                        self.logger.exception(f"Error sending notification to admin {admin_id[0]}: {e}")
+                                                        self.logger.exception(f"Error sending notification to admin {admin_id}: {e}")
 
                                             if auto_alliances:
                                                 gift_operations = self.bot.get_cog('GiftOperations')

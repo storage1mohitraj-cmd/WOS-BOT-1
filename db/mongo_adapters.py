@@ -192,6 +192,119 @@ class GiftcodeStateAdapter:
 
 
 # ============================================================================
+# ADMIN PERMISSIONS ADAPTER - Server/global admins and alliance access
+# ============================================================================
+
+class AdminPermissionsAdapter:
+    """Stores admin role and alliance permissions per Discord user.
+
+    Document schema in collection `admin_permissions`:
+    {
+      _id: str(user_id),
+      is_initial: int,           # 1 => global admin, 0 => server/admin
+      alliances: [int, ...],     # alliance_id values the admin can manage
+      created_at: iso8601,
+      updated_at: iso8601
+    }
+    """
+    COLL = 'admin_permissions'
+
+    @staticmethod
+    def upsert_admin(user_id: int, is_initial: int = 0) -> bool:
+        try:
+            db = _get_db()
+            now = datetime.utcnow().isoformat()
+            db[AdminPermissionsAdapter.COLL].update_one(
+                {'_id': str(user_id)},
+                {'$set': {'is_initial': int(is_initial), 'updated_at': now}, '$setOnInsert': {'alliances': [], 'created_at': now}},
+                upsert=True
+            )
+            return True
+        except Exception as e:
+            logger.error(f'Failed to upsert admin {user_id}: {e}')
+            return False
+
+    @staticmethod
+    def is_global_admin(user_id: int) -> bool:
+        try:
+            db = _get_db()
+            doc = db[AdminPermissionsAdapter.COLL].find_one({'_id': str(user_id)}, projection={'is_initial': 1})
+            return bool(doc and int(doc.get('is_initial', 0)) == 1)
+        except Exception as e:
+            logger.error(f'Failed to check global admin for {user_id}: {e}')
+            return False
+
+    @staticmethod
+    def get_global_admin_ids() -> list:
+        try:
+            db = _get_db()
+            docs = db[AdminPermissionsAdapter.COLL].find({'is_initial': 1}, projection={'_id': 1})
+            return [int(d.get('_id')) for d in docs]
+        except Exception as e:
+            logger.error(f'Failed to list global admin ids: {e}')
+            return []
+
+    @staticmethod
+    def get_admin_alliance_ids(user_id: int) -> list:
+        try:
+            db = _get_db()
+            doc = db[AdminPermissionsAdapter.COLL].find_one({'_id': str(user_id)}, projection={'alliances': 1})
+            return [int(a) for a in (doc.get('alliances', []) if doc else [])]
+        except Exception as e:
+            logger.error(f'Failed to get alliances for admin {user_id}: {e}')
+            return []
+
+    @staticmethod
+    def add_permission(user_id: int, alliance_id: int) -> bool:
+        try:
+            db = _get_db()
+            now = datetime.utcnow().isoformat()
+            db[AdminPermissionsAdapter.COLL].update_one(
+                {'_id': str(user_id)},
+                {'$addToSet': {'alliances': int(alliance_id)}, '$setOnInsert': {'is_initial': 0, 'created_at': now}, '$set': {'updated_at': now}},
+                upsert=True
+            )
+            return True
+        except Exception as e:
+            logger.error(f'Failed to add alliance {alliance_id} for admin {user_id}: {e}')
+            return False
+
+    @staticmethod
+    def remove_permission(user_id: int, alliance_id: int) -> bool:
+        try:
+            db = _get_db()
+            now = datetime.utcnow().isoformat()
+            db[AdminPermissionsAdapter.COLL].update_one(
+                {'_id': str(user_id)},
+                {'$pull': {'alliances': int(alliance_id)}, '$set': {'updated_at': now}}
+            )
+            return True
+        except Exception as e:
+            logger.error(f'Failed to remove alliance {alliance_id} for admin {user_id}: {e}')
+            return False
+
+    @staticmethod
+    def list_permissions() -> list:
+        """Return list of tuples (admin_id, is_initial, alliance_id) for all admins.
+
+        Mirrors the shape used by SQLite join in UI code.
+        """
+        try:
+            db = _get_db()
+            docs = list(db[AdminPermissionsAdapter.COLL].find({}, projection={'_id': 1, 'is_initial': 1, 'alliances': 1}))
+            rows = []
+            for d in docs:
+                admin_id = int(d.get('_id'))
+                is_initial = int(d.get('is_initial', 0))
+                alliances = d.get('alliances') or []
+                for aid in alliances:
+                    rows.append((admin_id, is_initial, int(aid)))
+            return rows
+        except Exception as e:
+            logger.error(f'Failed to list admin permissions: {e}')
+            return []
+
+# ============================================================================
 # ALLIANCE DATA ADAPTERS - For storing all alliance member info
 # ============================================================================
 
@@ -369,6 +482,62 @@ class GiftCodesAdapter:
             logger.error(f'Failed to clear all gift codes: {e}')
             return False
 
+    @staticmethod
+    def get_usage_count(code: str) -> int:
+        """Return the number of distinct users recorded against this gift code.
+
+        Counts the size of the `used_by` set if available; otherwise falls back to 0.
+        """
+        try:
+            db = _get_db()
+            doc = db[GiftCodesAdapter.COLL].find_one({'_id': code}, projection={'used_by': 1})
+            if not doc:
+                return 0
+            used_by = doc.get('used_by') or []
+            try:
+                return len(set(used_by))
+            except Exception:
+                # In case used_by is not iterable
+                return 0
+        except Exception as e:
+            logger.error(f'Failed to get usage count for {code}: {e}')
+            return 0
+
+    @staticmethod
+    def increment_usage(code: str, fid: str, status: str) -> bool:
+        """Record usage of a gift code by a user.
+
+        - Adds `fid` to `used_by` set (distinct users) regardless of status for parity.
+        - Maintains `used_count` as the size of `used_by`.
+        - Optionally records last usage metadata.
+        """
+        try:
+            db = _get_db()
+            now = datetime.utcnow().isoformat()
+            # Use $addToSet for distinct users; compute used_count lazily after update
+            db[GiftCodesAdapter.COLL].update_one(
+                {'_id': code},
+                {
+                    '$addToSet': {'used_by': str(fid)},
+                    '$set': {'last_used_at': now},
+                    '$setOnInsert': {'created_at': now}
+                },
+                upsert=True
+            )
+            # After ensuring used_by exists, update used_count = size(used_by)
+            doc = db[GiftCodesAdapter.COLL].find_one({'_id': code}, projection={'used_by': 1})
+            used_by = (doc or {}).get('used_by') or []
+            used_count = 0
+            try:
+                used_count = len(set(used_by))
+            except Exception:
+                used_count = 0
+            db[GiftCodesAdapter.COLL].update_one({'_id': code}, {'$set': {'used_count': used_count}})
+            return True
+        except Exception as e:
+            logger.error(f'Failed to increment usage for {code} by {fid}: {e}')
+            return False
+
 
 # Explicit exports for reliable module import on all platforms (Render, Docker, local)
 __all__ = [
@@ -377,6 +546,7 @@ __all__ = [
     'BirthdaysAdapter',
     'UserProfilesAdapter',
     'GiftcodeStateAdapter',
+    'AdminPermissionsAdapter',
     'GiftCodesAdapter',
     'AllianceMembersAdapter',
 ]

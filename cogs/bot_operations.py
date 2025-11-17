@@ -6,6 +6,7 @@ import sqlite3
 import asyncio
 import requests
 from .alliance_member_operations import AllianceSelectView
+from mongo_adapters import mongo_enabled, AdminPermissionsAdapter
 
 class BotOperations(commands.Cog):
     def __init__(self, bot, conn):
@@ -668,21 +669,31 @@ class BotOperations(commands.Cog):
 
         elif custom_id == "view_admin_permissions":
             try:
-                with sqlite3.connect('db/settings.sqlite') as settings_db:
-                    cursor = settings_db.cursor()
-                    cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (interaction.user.id,))
-                    result = cursor.fetchone()
-                    
-                    if not result or result[0] != 1:
-                        await interaction.response.send_message(
-                            "❌ Only global administrators can use this command.", 
-                            ephemeral=True
-                        )
-                        return
+                # Check global admin via Mongo first, fallback to SQLite
+                is_global = False
+                if mongo_enabled():
+                    is_global = AdminPermissionsAdapter.is_global_admin(interaction.user.id)
+                if not is_global:
+                    with sqlite3.connect('db/settings.sqlite') as settings_db:
+                        cursor = settings_db.cursor()
+                        cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (interaction.user.id,))
+                        result = cursor.fetchone()
+                        is_global = bool(result and result[0] == 1)
 
-                    with sqlite3.connect('db/alliance.sqlite') as alliance_db:
-                        alliance_cursor = alliance_db.cursor()
-                        
+                if not is_global:
+                    await interaction.response.send_message(
+                        "❌ Only global administrators can use this command.", 
+                        ephemeral=True
+                    )
+                    return
+
+                # Load permissions: prefer Mongo adapter; fallback to SQLite
+                admin_permissions = []
+                if mongo_enabled():
+                    admin_permissions = AdminPermissionsAdapter.list_permissions()
+                else:
+                    with sqlite3.connect('db/settings.sqlite') as settings_db:
+                        cursor = settings_db.cursor()
                         cursor.execute("""
                             SELECT a.id, a.is_initial, admin_server.alliances_id
                             FROM admin a
@@ -691,65 +702,68 @@ class BotOperations(commands.Cog):
                         """)
                         admin_permissions = cursor.fetchall()
 
-                        if not admin_permissions:
-                            await interaction.response.send_message(
-                                "No admin permissions found.", 
-                                ephemeral=True
-                            )
-                            return
+                if not admin_permissions:
+                    await interaction.response.send_message(
+                        "No admin permissions found.", 
+                        ephemeral=True
+                    )
+                    return
 
-                        admin_alliance_info = []
-                        for admin_id, is_initial, alliance_id in admin_permissions:
-                            alliance_cursor.execute("""
-                                SELECT name FROM alliance_list 
-                                WHERE alliance_id = ?
-                            """, (alliance_id,))
-                            alliance_result = alliance_cursor.fetchone()
-                            if alliance_result:
-                                admin_alliance_info.append((admin_id, is_initial, alliance_id, alliance_result[0]))
-
-                        embed = discord.Embed(
-                            title="👥 Admin Alliance Permissions",
-                            description=(
-                                "Select an admin to view or modify permissions:\n\n"
-                                "**Admin List**\n"
-                                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                            ),
-                            color=discord.Color.blue()
+                # Resolve alliance names from alliance.sqlite
+                admin_alliance_info = []
+                with sqlite3.connect('db/alliance.sqlite') as alliance_db:
+                    alliance_cursor = alliance_db.cursor()
+                    for admin_id, is_initial, alliance_id in admin_permissions:
+                        alliance_cursor.execute(
+                            "SELECT name FROM alliance_list WHERE alliance_id = ?",
+                            (alliance_id,)
                         )
+                        alliance_result = alliance_cursor.fetchone()
+                        if alliance_result:
+                            admin_alliance_info.append((admin_id, is_initial, alliance_id, alliance_result[0]))
 
-                        options = []
-                        for admin_id, is_initial, alliance_id, alliance_name in admin_alliance_info:
-                            try:
-                                user = await interaction.client.fetch_user(admin_id)
-                                admin_name = user.name
-                            except:
-                                admin_name = f"Unknown User ({admin_id})"
+                embed = discord.Embed(
+                    title="👥 Admin Alliance Permissions",
+                    description=(
+                        "Select an admin to view or modify permissions:\n\n"
+                        "**Admin List**\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━\n"
+                    ),
+                    color=discord.Color.blue()
+                )
 
-                            option_label = f"{admin_name[:50]}"
-                            option_desc = f"Alliance: {alliance_name[:50]}"
-                            
-                            options.append(
-                                discord.SelectOption(
-                                    label=option_label,
-                                    value=f"{admin_id}:{alliance_id}",
-                                    description=option_desc,
-                                    emoji="👑" if is_initial == 1 else "👤"
-                                )
-                            )
+                options = []
+                for admin_id, is_initial, alliance_id, alliance_name in admin_alliance_info:
+                    try:
+                        user = await interaction.client.fetch_user(admin_id)
+                        admin_name = user.name
+                    except:
+                        admin_name = f"Unknown User ({admin_id})"
 
-                        if not options:
-                            await interaction.response.send_message(
-                                "No admin-alliance permissions found.", 
-                                ephemeral=True
-                            )
-                            return
-
-                        select = discord.ui.Select(
-                            placeholder="Select an admin to remove permission...",
-                            options=options,
-                            custom_id="admin_permission_select"
+                    option_label = f"{admin_name[:50]}"
+                    option_desc = f"Alliance: {alliance_name[:50]}"
+                    
+                    options.append(
+                        discord.SelectOption(
+                            label=option_label,
+                            value=f"{admin_id}:{alliance_id}",
+                            description=option_desc,
+                            emoji="👑" if is_initial == 1 else "👤"
                         )
+                    )
+
+                if not options:
+                    await interaction.response.send_message(
+                        "No admin-alliance permissions found.", 
+                        ephemeral=True
+                    )
+                    return
+
+                select = discord.ui.Select(
+                    placeholder="Select an admin to remove permission...",
+                    options=options,
+                    custom_id="admin_permission_select"
+                )
 
                         async def select_callback(select_interaction: discord.Interaction):
                             try:
@@ -854,22 +868,39 @@ class BotOperations(commands.Cog):
 
         elif custom_id == "view_administrators":
             try:
-                self.settings_cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (interaction.user.id,))
-                result = self.settings_cursor.fetchone()
-                
-                if not result or result[0] != 1:
+                # Check global admin via Mongo first, fallback to SQLite
+                is_global = False
+                if mongo_enabled():
+                    is_global = AdminPermissionsAdapter.is_global_admin(interaction.user.id)
+                if not is_global:
+                    self.settings_cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (interaction.user.id,))
+                    result = self.settings_cursor.fetchone()
+                    is_global = bool(result and result[0] == 1)
+                if not is_global:
                     await interaction.response.send_message(
                         "❌ Only global administrators can use this command.", 
                         ephemeral=True
                     )
                     return
 
-                self.settings_cursor.execute("""
-                    SELECT a.id, a.is_initial 
-                    FROM admin a
-                    ORDER BY a.is_initial DESC, a.id
-                """)
-                admins = self.settings_cursor.fetchall()
+                # Get all admins: prefer Mongo; fallback to SQLite
+                admins = []
+                if mongo_enabled():
+                    try:
+                        # get all admin docs: (_id, is_initial)
+                        from db.mongo_adapters import _get_db  # type: ignore
+                        db = _get_db()
+                        docs = list(db[AdminPermissionsAdapter.COLL].find({}, projection={'_id': 1, 'is_initial': 1}))
+                        admins = [(int(d.get('_id')), int(d.get('is_initial', 0))) for d in docs]
+                    except Exception:
+                        admins = []
+                if not admins:
+                    self.settings_cursor.execute("""
+                        SELECT a.id, a.is_initial 
+                        FROM admin a
+                        ORDER BY a.is_initial DESC, a.id
+                    """)
+                    admins = self.settings_cursor.fetchall()
 
                 if not admins:
                     await interaction.response.send_message(
@@ -890,12 +921,15 @@ class BotOperations(commands.Cog):
                         admin_name = user.name
                         admin_avatar = user.display_avatar.url
 
-                        self.settings_cursor.execute("""
-                            SELECT alliances_id 
-                            FROM adminserver 
-                            WHERE admin = ?
-                        """, (admin_id,))
-                        alliance_ids = self.settings_cursor.fetchall()
+                        alliance_ids = []
+                        if mongo_enabled():
+                            alliance_ids = [(aid,) for aid in AdminPermissionsAdapter.get_admin_alliance_ids(admin_id)]
+                        else:
+                            self.settings_cursor.execute(
+                                "SELECT alliances_id FROM adminserver WHERE admin = ?",
+                                (admin_id,)
+                            )
+                            alliance_ids = self.settings_cursor.fetchall()
 
                         alliance_names = []
                         if alliance_ids:
@@ -1185,13 +1219,23 @@ class BotOperations(commands.Cog):
 
     async def confirm_permission_removal(self, admin_id: int, alliance_id: int, confirm_interaction: discord.Interaction):
         try:
-            self.settings_cursor.execute("""
-                DELETE FROM adminserver 
-                WHERE admin = ? AND alliances_id = ?
-            """, (admin_id, alliance_id))
-            self.settings_db.commit()
-            return True
-        except Exception as e:
+            # Prefer Mongo removal; fallback to SQLite
+            if mongo_enabled():
+                ok = AdminPermissionsAdapter.remove_permission(admin_id, alliance_id)
+                if ok:
+                    return True
+            # Fallback to SQLite
+            try:
+                self.settings_cursor.execute(
+                    "DELETE FROM adminserver WHERE admin = ? AND alliances_id = ?",
+                    (admin_id, alliance_id)
+                )
+                self.settings_db.commit()
+                return True
+            except Exception:
+                pass
+            return False
+        except Exception:
             return False
 
     async def check_for_updates(self):
@@ -1228,4 +1272,4 @@ class BotOperations(commands.Cog):
             return None, None, [], False
 
 async def setup(bot):
-    await bot.add_cog(BotOperations(bot, sqlite3.connect('db/settings.sqlite'))) 
+    await bot.add_cog(BotOperations(bot, sqlite3.connect('db/settings.sqlite')))
