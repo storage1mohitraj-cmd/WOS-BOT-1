@@ -20,6 +20,30 @@ try:
     # Print whether key env vars exist (don't print values)
     print("STARTUP DEBUG: MONGO_URI set?", bool(os.getenv('MONGO_URI')))
     print("STARTUP DEBUG: DEV_GUILD_ID set?", bool(os.getenv('DEV_GUILD_ID')))
+    # Optional: enforce Mongo requirement in production
+    if os.getenv('MONGO_REQUIRED') == '1' and not os.getenv('MONGO_URI'):
+        print('FATAL: MONGO_REQUIRED=1 but MONGO_URI is not set. Exiting.')
+        sys.exit(1)
+
+    # Report storage mode early and attempt a quick Mongo ping if configured
+    try:
+        from mongo_adapters import mongo_enabled  # shim re-exports db.mongo_adapters
+        print("STARTUP DEBUG: mongo_enabled() =", mongo_enabled())
+        if mongo_enabled():
+            try:
+                from db.mongo_client_wrapper import get_mongo_client
+                uri = os.getenv('MONGO_URI')
+                client = get_mongo_client(uri)
+                client.admin.command('ping')
+                print('STARTUP DEBUG: Mongo ping OK — persistent storage active')
+                client.close()
+            except Exception as me:
+                print('STARTUP DEBUG: Mongo configured but connection failed; will fall back to SQLite if code allows.')
+                print(f'STARTUP DEBUG: Mongo error: {me}')
+        else:
+            print('STARTUP DEBUG: Mongo disabled — using SQLite/local files (ephemeral on Render)')
+    except Exception as ie:
+        print('STARTUP DEBUG: Failed to import mongo_adapters; using SQLite/local files (ephemeral):', ie)
 except Exception as _:
     pass
 # Try to ensure `db.mongo_adapters` is importable in environments where

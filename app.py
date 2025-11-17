@@ -105,6 +105,40 @@ if not is_container() and not is_ci_environment():
 print("[SETUP] Bot initialization complete")
 
 # ============================================================================
+# STARTUP diagnostics for storage configuration (Mongo vs SQLite)
+# ============================================================================
+try:
+    import pprint
+    print("[STARTUP] CWD:", os.getcwd())
+    print("[STARTUP] sys.path (first 6 entries):")
+    pprint.pprint(sys.path[:6])
+    print("[STARTUP] MONGO_URI set?", bool(os.getenv('MONGO_URI')))
+    if os.getenv('MONGO_REQUIRED') == '1' and not os.getenv('MONGO_URI'):
+        print('[FATAL] MONGO_REQUIRED=1 but MONGO_URI is not set. Exiting.')
+        sys.exit(1)
+
+    # Use top-level shim to detect Mongo availability, then attempt a quick ping
+    try:
+        from mongo_adapters import mongo_enabled
+        print('[STARTUP] mongo_enabled() =', mongo_enabled())
+        if mongo_enabled():
+            try:
+                from db.mongo_client_wrapper import get_mongo_client
+                client = get_mongo_client(os.getenv('MONGO_URI'))
+                client.admin.command('ping')
+                print('[STARTUP] Mongo ping OK — persistent storage active')
+                client.close()
+            except Exception as me:
+                print('[STARTUP] Mongo configured but connection failed; code may fall back to SQLite.')
+                print(f'[STARTUP] Mongo error: {me}')
+        else:
+            print('[STARTUP] Mongo disabled — using SQLite/local files (ephemeral on Render)')
+    except Exception as ie:
+        print('[STARTUP] Failed to import mongo_adapters; using SQLite/local files (ephemeral):', ie)
+except Exception:
+    pass
+
+# ============================================================================
 # NOW safe to import everything
 # ============================================================================
 
