@@ -24,11 +24,6 @@ from .gift_operationsapi import GiftCodeAPI
 from .gift_captchasolver import GiftCaptchaSolver
 from collections import deque
 from .gift_operations_captcha import fetch_captcha as captcha_fetch, attempt_gift_code_with_api as captcha_attempt
-try:
-    from db.mongo_adapters import mongo_enabled, GiftCodesAdapter
-except Exception:
-    mongo_enabled = lambda: False
-    GiftCodesAdapter = None
 
 class GiftOperations(commands.Cog):
     def __init__(self, bot):
@@ -2226,6 +2221,11 @@ class GiftOperations(commands.Cog):
                 )
 
     async def list_gift_codes(self, interaction: discord.Interaction):
+        # Acknowledge the interaction immediately to avoid timeout/Unknown interaction
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
         self.cursor.execute("""
             SELECT 
                 gc.giftcode,
@@ -2309,7 +2309,12 @@ class GiftOperations(commands.Cog):
                     inline=False
                 )
 
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            try:
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            except Exception:
+                # As a last resort if followup fails
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -2325,10 +2330,19 @@ class GiftOperations(commands.Cog):
                 inline=False
             )
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        try:
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(embed=embed, ephemeral=True)
 
     async def delete_gift_code(self, interaction: discord.Interaction):
         try:
+            # Acknowledge the interaction immediately to avoid timeout/Unknown interaction
+            try:
+                await interaction.response.defer(ephemeral=True)
+            except Exception:
+                pass
             settings_conn = sqlite3.connect('db/settings.sqlite')
             settings_cursor = settings_conn.cursor()
             
@@ -2342,7 +2356,7 @@ class GiftOperations(commands.Cog):
             settings_conn.close()
 
             if not is_admin:
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     embed=discord.Embed(
                         title="❌ Unauthorized Access",
                         description="This action requires Global Admin privileges.",
@@ -2367,7 +2381,7 @@ class GiftOperations(commands.Cog):
             codes = self.cursor.fetchall()
             
             if not codes:
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     embed=discord.Embed(
                         title="❌ No Gift Codes",
                         description="There are no gift codes in the database to delete.",
@@ -2513,18 +2527,34 @@ class GiftOperations(commands.Cog):
                 color=discord.Color.blue()
             )
 
-            await interaction.response.send_message(
-                embed=initial_embed,
-                view=view,
-                ephemeral=True
-            )
+            try:
+                await interaction.followup.send(
+                    embed=initial_embed,
+                    view=view,
+                    ephemeral=True
+                )
+            except Exception:
+                # Fallback only if the initial response wasn't sent
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        embed=initial_embed,
+                        view=view,
+                        ephemeral=True
+                    )
 
         except Exception as e:
             self.logger.exception(f"Delete gift code error: {str(e)}")
-            await interaction.response.send_message(
-                "❌ An error occurred while processing the request.",
-                ephemeral=True
-            )
+            try:
+                await interaction.followup.send(
+                    "❌ An error occurred while processing the request.",
+                    ephemeral=True
+                )
+            except Exception:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "❌ An error occurred while processing the request.",
+                        ephemeral=True
+                    )
 
     async def delete_gift_channel(self, interaction: discord.Interaction):
         admin_info = await self.get_admin_info(interaction.user.id)
@@ -3379,9 +3409,14 @@ class GiftOperations(commands.Cog):
         )
 
     async def setup_giftcode_auto(self, interaction: discord.Interaction):
+        # Acknowledge the interaction immediately to avoid timeout/Unknown interaction
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
         admin_info = await self.get_admin_info(interaction.user.id)
         if not admin_info:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ You are not authorized to perform this action.",
                 ephemeral=True
             )
@@ -3389,7 +3424,7 @@ class GiftOperations(commands.Cog):
 
         available_alliances = await self.get_available_alliances(interaction)
         if not available_alliances:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=discord.Embed(
                     title="❌ No Available Alliances",
                     description="You don't have access to any alliances.",
@@ -3588,11 +3623,19 @@ class GiftOperations(commands.Cog):
 
         view.callback = alliance_callback
 
-        await interaction.response.send_message(
-            embed=auto_gift_embed,
-            view=view,
-            ephemeral=True
-        )
+        try:
+            await interaction.followup.send(
+                embed=auto_gift_embed,
+                view=view,
+                ephemeral=True
+            )
+        except Exception:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    embed=auto_gift_embed,
+                    view=view,
+                    ephemeral=True
+                )
 
     async def use_giftcode_for_alliance(self, alliance_id, giftcode):
         MEMBER_PROCESS_DELAY = 1.0
@@ -4300,8 +4343,6 @@ class GiftView(discord.ui.View):
     def __init__(self, cog):
         super().__init__(timeout=7200)
         self.cog = cog
-        # Ensure a logger is available on the view
-        self.logger = getattr(self.cog, 'logger', logging.getLogger('gift_ops.view'))
 
     @discord.ui.button(
         label="Add Gift Code",
@@ -4417,29 +4458,12 @@ class GiftView(discord.ui.View):
                         alliance_id = int(selected_value)
                         all_alliances = [alliance_id]
                     
-                    # Prefer Mongo when available to avoid SQLite table errors
-                    gift_codes = []
-                    if mongo_enabled() and GiftCodesAdapter is not None:
-                        try:
-                            docs = GiftCodesAdapter.get_all() or []
-                            # Filter out invalid, then sort by date desc (string dates like YYYY-MM-DD)
-                            filtered = [(code, (date or '')) for code, date, status in docs if status != 'invalid']
-                            gift_codes = sorted(filtered, key=lambda t: t[1], reverse=True)
-                        except Exception as e:
-                            self.logger.exception(f"Failed to load gift codes from Mongo: {e}")
-                            gift_codes = []
-                    else:
-                        try:
-                            self.cog.cursor.execute("""
-                                SELECT giftcode, date FROM gift_codes
-                                WHERE validation_status != 'invalid'
-                                ORDER BY date DESC
-                            """)
-                            gift_codes = self.cog.cursor.fetchall()
-                        except sqlite3.Error as e:
-                            # Gracefully handle missing table or other SQLite errors
-                            self.logger.exception(f"SQLite error loading gift codes: {e}")
-                            gift_codes = []
+                    self.cog.cursor.execute("""
+                        SELECT giftcode, date FROM gift_codes
+                        WHERE validation_status != 'invalid'
+                        ORDER BY date DESC
+                    """)
+                    gift_codes = self.cog.cursor.fetchall()
 
                     if not gift_codes:
                         await select_interaction.response.edit_message(
@@ -4490,37 +4514,37 @@ class GiftView(discord.ui.View):
                             )
 
                             confirm_view = discord.ui.View()
-
+                            
                             async def confirm_callback(button_interaction: discord.Interaction):
                                 try:
                                     await self.cog.add_manual_redemption_to_queue(
                                         selected_code, all_alliances, button_interaction
                                     )
-
+                                    
                                     queue_status = await self.cog.get_queue_status()
-
+                                    
                                     alliance_names = []
                                     for aid in all_alliances[:3]:  # Show first 3 alliance names
                                         name = next((n for a_id, n, _ in alliances_with_counts if a_id == aid), 'Unknown')
                                         alliance_names.append(name)
-
+                                    
                                     alliance_list = ", ".join(alliance_names)
                                     if len(all_alliances) > 3:
                                         alliance_list += f" and {len(all_alliances) - 3} more"
-
+                                    
                                     queue_summary = []
                                     your_position = None
-
+                                    
                                     for code, items in queue_status['queue_by_code'].items():
                                         alliance_count = len([i for i in items if i.get('alliance_id')])
-
+                                        
                                         if code == selected_code and your_position is None:
                                             your_position = min(i['position'] for i in items)
-
+                                        
                                         queue_summary.append(f"• `{code}` - {alliance_count} alliance{'s' if alliance_count != 1 else ''}")
-
+                                    
                                     queue_info = "\n".join(queue_summary) if queue_summary else "Queue is empty"
-
+                                    
                                     queue_embed = discord.Embed(
                                         title="✅ Redemptions Queued Successfully",
                                         description=(
@@ -4539,11 +4563,12 @@ class GiftView(discord.ui.View):
                                         color=discord.Color.green()
                                     )
                                     queue_embed.set_footer(text="Gift codes are processed sequentially to prevent issues.")
-
+                                    
                                     await button_interaction.response.edit_message(
                                         embed=queue_embed,
                                         view=None
                                     )
+
                                 except Exception as e:
                                     self.logger.exception(f"Error queueing gift code redemptions: {e}")
                                     await button_interaction.response.send_message(
