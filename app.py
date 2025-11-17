@@ -185,8 +185,24 @@ def ensure_db_tables():
         logger.info("[DB] All alliance data, users, and configs will be saved to MongoDB")
         logger.info("[DB] Data will persist across bot restarts on Render")
         return  # Skip SQLite initialization - use MongoDB exclusively
-    
-    # Only create SQLite tables if MongoDB is NOT available
+
+    # Determine if we should hard-disable SQLite fallback (production-like envs)
+    strict_disable_sqlite = (
+        os.getenv('MONGO_REQUIRED') == '1' or
+        os.getenv('DISABLE_SQLITE') == '1' or
+        is_container() or
+        bool(os.getenv('RENDER')) or
+        bool(os.getenv('RENDER_SERVICE_ID')) or
+        bool(os.getenv('DYNO'))  # Heroku-style
+    )
+
+    if strict_disable_sqlite:
+        print("[FATAL] MongoDB is required but MONGO_URI is not set.")
+        print("[FATAL] Refusing to initialize SQLite in production-like environment.")
+        print("[FIX]  Set MONGO_URI in environment to enable persistent storage.")
+        sys.exit(1)
+
+    # Only create SQLite tables if MongoDB is NOT available and not in strict mode
     logger.warning("[DB] ⚠️  MONGO_URI not set - Falling back to SQLite (NOT persistent on Render)")
     logger.warning("[DB] Add MONGO_URI environment variable to enable persistent MongoDB storage")
     
