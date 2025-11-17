@@ -32,24 +32,19 @@ class GiftCodeAPI:
         self.max_backoff_time = 300
         self.current_backoff = self.error_backoff_time
         
-        # Check if MongoDB is available (env var + adapter readiness)
-        try:
-            from mongo_adapters import mongo_enabled as _mongo_enabled
-            self.mongo_enabled = bool(os.getenv('MONGO_URI')) and bool(_mongo_enabled())
-        except Exception:
-            self.mongo_enabled = False
+        # Check if MongoDB is available
+        self.mongo_enabled = bool(os.getenv('MONGO_URI'))
         
         if self.mongo_enabled:
-            # Import MongoDB adapter using shim for reliable access on Render
+            # Import MongoDB adapter
             try:
-                from mongo_adapters import GiftCodesAdapter, AdminPermissionsAdapter
+                from db.mongo_adapters import GiftCodesAdapter
                 self.gift_codes_adapter = GiftCodesAdapter
-                self.admin_adapter = AdminPermissionsAdapter
                 self.logger = logging.getLogger("gift_operationsapi")
                 self.logger.info("[GIFTCODES] ✅ MongoDB enabled - Using GiftCodesAdapter for all operations")
             except ImportError as e:
                 self.logger = logging.getLogger("gift_operationsapi")
-                self.logger.error(f"[GIFTCODES] Failed to import GiftCodesAdapter via shim: {e}")
+                self.logger.error(f"[GIFTCODES] Failed to import GiftCodesAdapter: {e}")
                 self.mongo_enabled = False
         
         if not self.mongo_enabled:
@@ -362,16 +357,8 @@ class GiftCodeAPI:
                                                 validation_status = "⚠️ Validation unavailable"
                                                 auto_alliances = []
 
-                                            # Notify global admins about new or invalidated codes
-                                            if self.mongo_enabled:
-                                                try:
-                                                    admin_ids = self.admin_adapter.get_global_admin_ids()
-                                                except Exception:
-                                                    admin_ids = []
-                                            else:
-                                                self.settings_cursor.execute("SELECT id FROM admin WHERE is_initial = 1")
-                                                admin_ids = [row[0] for row in self.settings_cursor.fetchall()]
-
+                                            self.settings_cursor.execute("SELECT id FROM admin WHERE is_initial = 1")
+                                            admin_ids = self.settings_cursor.fetchall()
                                             if admin_ids:
                                                 admin_embed = discord.Embed(
                                                     title="🎁 New Gift Code Found!",
@@ -390,11 +377,11 @@ class GiftCodeAPI:
 
                                                 for admin_id in admin_ids:
                                                     try:
-                                                        admin_user = await self.bot.fetch_user(int(admin_id))
+                                                        admin_user = await self.bot.fetch_user(admin_id[0])
                                                         if admin_user:
                                                             await admin_user.send(embed=admin_embed)
                                                     except Exception as e:
-                                                        self.logger.exception(f"Error sending notification to admin {admin_id}: {e}")
+                                                        self.logger.exception(f"Error sending notification to admin {admin_id[0]}: {e}")
 
                                             if auto_alliances:
                                                 gift_operations = self.bot.get_cog('GiftOperations')

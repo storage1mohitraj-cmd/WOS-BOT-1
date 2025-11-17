@@ -24,14 +24,6 @@ from .gift_operationsapi import GiftCodeAPI
 from .gift_captchasolver import GiftCaptchaSolver
 from collections import deque
 from .gift_operations_captcha import fetch_captcha as captcha_fetch, attempt_gift_code_with_api as captcha_attempt
-try:
-    from mongo_adapters import mongo_enabled, GiftCodesAdapter, GiftcodeStateAdapter
-except Exception:
-    # Fallbacks if shim import fails
-    def mongo_enabled():
-        return False
-    GiftCodesAdapter = None
-    GiftcodeStateAdapter = None
 
 class GiftOperations(commands.Cog):
     def __init__(self, bot):
@@ -82,47 +74,6 @@ class GiftOperations(commands.Cog):
 
         # API Setup
         self.api = GiftCodeAPI(bot)
-
-        # Detect and configure MongoDB adapter usage for gift codes
-        self.mongo_enabled = False
-        self.gift_codes_adapter = None
-        self.gift_state_adapter = None
-        try:
-            if os.getenv('MONGO_URI') and mongo_enabled() and GiftCodesAdapter is not None:
-                self.mongo_enabled = True
-                self.gift_codes_adapter = GiftCodesAdapter
-                self.gift_state_adapter = GiftcodeStateAdapter
-                self.logger.info("GiftOperations: storage backend configured: MongoDB via shim GiftCodesAdapter")
-            else:
-                self.logger.info("GiftOperations: storage backend configured: SQLite")
-        except Exception:
-            # If detection fails, default to SQLite
-            self.logger.info("GiftOperations: storage backend configured: SQLite (adapter detection failed)")
-
-        # Small helpers for Mongo-backed settings/state
-        def _get_state():
-            try:
-                if self.mongo_enabled and self.gift_state_adapter is not None:
-                    s = self.gift_state_adapter.get_state() or {}
-                    # Ensure expected containers exist
-                    s.setdefault('gift_channels', {})
-                    s.setdefault('gift_auto_control', {})
-                    return s
-            except Exception:
-                pass
-            return {}
-
-        def _set_state(new_state: dict):
-            try:
-                if self.mongo_enabled and self.gift_state_adapter is not None:
-                    return bool(self.gift_state_adapter.set_state(new_state))
-            except Exception:
-                pass
-            return False
-
-        # bind helpers to instance
-        self._get_state = _get_state
-        self._set_state = _set_state
 
         # Gift Code Control Table
         self.cursor.execute("""
@@ -977,15 +928,6 @@ class GiftOperations(commands.Cog):
             
             self.conn.commit()
             self.logger.info(f"GiftOps: Batch inserted/updated {len(user_giftcode_data)} user giftcode records")
-
-            # Mirror usage into Mongo for parity (if enabled)
-            if self.mongo_enabled and self.gift_codes_adapter is not None:
-                try:
-                    for fid, giftcode, status in user_giftcode_data:
-                        # Record distinct user usage regardless of status to match SQLite counts
-                        self.gift_codes_adapter.increment_usage(str(giftcode), str(fid), str(status))
-                except Exception as e:
-                    self.logger.warning(f"GiftOps: Failed to mirror usage to Mongo: {e}")
             
         except Exception as e:
             self.logger.exception(f"GiftOps: Error in batch_insert_user_giftcodes: {e}")
@@ -2029,37 +1971,9 @@ class GiftOperations(commands.Cog):
             await message.add_reaction("⏳")
 
     async def get_admin_info(self, user_id):
-        """Return admin info for a user, preferring Mongo-backed global admin state.
-
-        Returns a tuple (id, is_initial) to maintain compatibility with existing callers:
-        - If the user is a global admin in Mongo state, return (user_id, 1).
-        - Otherwise, fall back to SQLite admin table lookup.
-        """
-        # Prefer Mongo-backed global admin list
-        try:
-            if self.mongo_enabled and self.gift_state_adapter is not None:
-                state = self._get_state()
-                admins_block = state.get('admins') or {}
-                ga_list = admins_block.get('global_admins') or state.get('global_admins') or []
-                # Normalize both int and str IDs
-                try:
-                    ids_set_int = {int(x) for x in ga_list}
-                except Exception:
-                    ids_set_int = set()
-                ids_set_str = {str(x) for x in ga_list}
-                if (user_id in ids_set_int) or (str(user_id) in ids_set_str):
-                    return (user_id, 1)
-        except Exception:
-            # Safe fallback to SQLite below
-            pass
-
-        # Fallback to SQLite admin table
-        self.settings_cursor.execute(
-            """
+        self.settings_cursor.execute("""
             SELECT id, is_initial FROM admin WHERE id = ?
-            """,
-            (user_id,)
-        )
+        """, (user_id,))
         return self.settings_cursor.fetchone()
 
     async def get_alliance_names(self, user_id, is_global=False):
@@ -2287,31 +2201,13 @@ class GiftOperations(commands.Cog):
             pass
 
     async def create_gift_code(self, interaction: discord.Interaction):
-        # Prefer Mongo-based admin authorization; fallback to SQLite
-        is_admin = False
-        if self.mongo_enabled and self.gift_state_adapter is not None:
-            try:
-                state = self._get_state()
-                admins_block = state.get('admins') or {}
-                ga_list = admins_block.get('global_admins') or state.get('global_admins') or []
-                ids_set_int = set()
-                try:
-                    ids_set_int = {int(x) for x in ga_list}
-                except Exception:
-                    ids_set_int = set()
-                ids_set_str = {str(x) for x in ga_list}
-                is_admin = (interaction.user.id in ids_set_int) or (str(interaction.user.id) in ids_set_str)
-            except Exception:
-                is_admin = False
-
-        if not is_admin:
-            self.settings_cursor.execute("SELECT 1 FROM admin WHERE id = ?", (interaction.user.id,))
-            if not self.settings_cursor.fetchone():
-                await interaction.response.send_message(
-                    "❌ You are not authorized to create gift codes.",
-                    ephemeral=True
-                )
-                return
+        self.settings_cursor.execute("SELECT 1 FROM admin WHERE id = ?", (interaction.user.id,))
+        if not self.settings_cursor.fetchone():
+            await interaction.response.send_message(
+                "❌ You are not authorized to create gift codes.",
+                ephemeral=True
+            )
+            return
 
         modal = CreateGiftCodeModal(self)
         try:
@@ -2325,55 +2221,20 @@ class GiftOperations(commands.Cog):
                 )
 
     async def list_gift_codes(self, interaction: discord.Interaction):
-        # Prefer MongoDB-backed listing when available
-        if self.mongo_enabled and self.gift_codes_adapter is not None:
-            try:
-                docs = self.gift_codes_adapter.get_all() or []  # list of (code, date, status)
-                validated_docs = [(code, date) for (code, date, status) in docs if status == 'validated']
-            except Exception as e:
-                self.logger.exception(f"GiftOperations: Failed to fetch codes from Mongo adapter: {e}")
-                validated_docs = []
-
-            if validated_docs:
-                embed = discord.Embed(
-                    title="🎁 Active Gift Codes",
-                    description="Currently active and valid gift codes.",
-                    color=discord.Color.blue()
-                )
-
-                for code, date in validated_docs:
-                    try:
-                        used_count = int(self.gift_codes_adapter.get_usage_count(code) or 0)
-                    except Exception:
-                        used_count = 0
-                    embed.add_field(
-                        name=f"Code: {code}",
-                        value=f"Created: {date}\nUsed by: {used_count} users",
-                        inline=False
-                    )
-
-                await interaction.response.send_message(embed=embed, ephemeral=True)
-                return
-
-        # SQLite path (or Mongo had no validated codes): fall back to existing query
-        try:
-            self.cursor.execute("""
-                SELECT 
-                    gc.giftcode,
-                    gc.date,
-                    COUNT(DISTINCT ugc.fid) as used_count
-                FROM gift_codes gc
-                LEFT JOIN user_giftcodes ugc ON gc.giftcode = ugc.giftcode
-                WHERE gc.validation_status = 'validated'
-                GROUP BY gc.giftcode
-                ORDER BY gc.date DESC
-            """)
-            codes = self.cursor.fetchall()
-        except sqlite3.OperationalError as e:
-            # Missing table on fresh deploy; treat as empty to trigger website fallback
-            self.logger.warning(f"GiftOperations: SQLite query failed while listing gift codes: {e}")
-            codes = []
-
+        self.cursor.execute("""
+            SELECT 
+                gc.giftcode,
+                gc.date,
+                COUNT(DISTINCT ugc.fid) as used_count
+            FROM gift_codes gc
+            LEFT JOIN user_giftcodes ugc ON gc.giftcode = ugc.giftcode
+            WHERE gc.validation_status = 'validated'
+            GROUP BY gc.giftcode
+            ORDER BY gc.date DESC
+        """)
+        
+        codes = self.cursor.fetchall()
+        
         if not codes:
             # Fallback: fetch active codes from website and queue auto redemption
             try:
@@ -2463,43 +2324,17 @@ class GiftOperations(commands.Cog):
 
     async def delete_gift_code(self, interaction: discord.Interaction):
         try:
-            # Prefer Mongo-backed admin check when available; fallback to SQLite
-            is_admin = False
-            if self.mongo_enabled and self.gift_state_adapter is not None:
-                try:
-                    state = self._get_state()
-                    admins_block = state.get('admins') or {}
-                    ga_list = admins_block.get('global_admins') or state.get('global_admins') or []
-                    ids_set_int = set()
-                    try:
-                        ids_set_int = {int(x) for x in ga_list}
-                    except Exception:
-                        ids_set_int = set()
-                    ids_set_str = {str(x) for x in ga_list}
-                    is_admin = (interaction.user.id in ids_set_int) or (str(interaction.user.id) in ids_set_str)
-                except Exception:
-                    is_admin = False
-
-            if not is_admin:
-                try:
-                    settings_conn = sqlite3.connect('db/settings.sqlite')
-                    settings_cursor = settings_conn.cursor()
-                    settings_cursor.execute(
-                        """
-                        SELECT 1 FROM admin 
-                        WHERE id = ? AND is_initial = 1
-                        """,
-                        (interaction.user.id,)
-                    )
-                    is_admin = bool(settings_cursor.fetchone())
-                except Exception:
-                    is_admin = False
-                finally:
-                    try:
-                        settings_cursor.close()
-                        settings_conn.close()
-                    except Exception:
-                        pass
+            settings_conn = sqlite3.connect('db/settings.sqlite')
+            settings_cursor = settings_conn.cursor()
+            
+            settings_cursor.execute("""
+                SELECT 1 FROM admin 
+                WHERE id = ? AND is_initial = 1
+            """, (interaction.user.id,))
+            
+            is_admin = settings_cursor.fetchone()
+            settings_cursor.close()
+            settings_conn.close()
 
             if not is_admin:
                 await interaction.response.send_message(
@@ -2512,34 +2347,19 @@ class GiftOperations(commands.Cog):
                 )
                 return
 
-            # Prefer Mongo adapter for listing; fallback to SQLite
-            codes = []
-            if self.mongo_enabled and self.gift_codes_adapter is not None:
-                try:
-                    docs = self.gift_codes_adapter.get_all() or []  # tuples (code, date, status)
-                    for code, date, validation_status in docs:
-                        try:
-                            used_count = int(self.gift_codes_adapter.get_usage_count(code) or 0)
-                        except Exception:
-                            used_count = 0
-                        codes.append((code, date or 'unknown', validation_status or 'pending', used_count))
-                except Exception:
-                    codes = []
-            if not codes:
-                self.cursor.execute(
-                    """
-                    SELECT 
-                        gc.giftcode,
-                        gc.date,
-                        gc.validation_status,
-                        COUNT(DISTINCT ugc.fid) as used_count
-                    FROM gift_codes gc
-                    LEFT JOIN user_giftcodes ugc ON gc.giftcode = ugc.giftcode
-                    GROUP BY gc.giftcode, gc.date, gc.validation_status
-                    ORDER BY gc.date DESC
-                    """
-                )
-                codes = self.cursor.fetchall()
+            self.cursor.execute("""
+                SELECT 
+                    gc.giftcode,
+                    gc.date,
+                    gc.validation_status,
+                    COUNT(DISTINCT ugc.fid) as used_count
+                FROM gift_codes gc
+                LEFT JOIN user_giftcodes ugc ON gc.giftcode = ugc.giftcode
+                GROUP BY gc.giftcode, gc.date, gc.validation_status
+                ORDER BY gc.date DESC
+            """)
+            
+            codes = self.cursor.fetchall()
             
             if not codes:
                 await interaction.response.send_message(
@@ -2595,20 +2415,9 @@ class GiftOperations(commands.Cog):
                     try:
                         if button_interaction.data.get('custom_id') == "confirm":
                             try:
-                                if self.mongo_enabled and self.gift_codes_adapter is not None:
-                                    try:
-                                        ok = self.gift_codes_adapter.delete(selected_code)
-                                        if not ok:
-                                            raise Exception("Mongo adapter delete returned False")
-                                    except Exception:
-                                        # fall back to SQLite deletion
-                                        self.cursor.execute("DELETE FROM gift_codes WHERE giftcode = ?", (selected_code,))
-                                        self.cursor.execute("DELETE FROM user_giftcodes WHERE giftcode = ?", (selected_code,))
-                                        self.conn.commit()
-                                else:
-                                    self.cursor.execute("DELETE FROM gift_codes WHERE giftcode = ?", (selected_code,))
-                                    self.cursor.execute("DELETE FROM user_giftcodes WHERE giftcode = ?", (selected_code,))
-                                    self.conn.commit()
+                                self.cursor.execute("DELETE FROM gift_codes WHERE giftcode = ?", (selected_code,))
+                                self.cursor.execute("DELETE FROM user_giftcodes WHERE giftcode = ?", (selected_code,))
+                                self.conn.commit()
                                 
                                 success_embed = discord.Embed(
                                     title="✅ Gift Code Deleted",
@@ -3041,26 +2850,13 @@ class GiftOperations(commands.Cog):
             )
             return
         
-        # Get alliances with configured channels (Mongo preferred)
-        if self.mongo_enabled and self.gift_state_adapter is not None:
-            state = self._get_state()
-            channels_map = state.get('gift_channels', {})
-            # Normalize keys to int
-            channel_configs = [
-                (int(aid), int(cid))
-                for aid, cid in channels_map.items()
-                if str(aid).isdigit() and str(cid).isdigit()
-            ]
-            channel_configs.sort(key=lambda t: t[0])
-        else:
-            self.cursor.execute(
-                """
-                SELECT alliance_id, channel_id 
-                FROM giftcode_channel
-                ORDER BY alliance_id
-                """
-            )
-            channel_configs = self.cursor.fetchall()
+        # Get alliances with configured channels
+        self.cursor.execute("""
+            SELECT alliance_id, channel_id 
+            FROM giftcode_channel
+            ORDER BY alliance_id
+        """)
+        channel_configs = self.cursor.fetchall()
         
         alliance_names = {aid: name for aid, name in available_alliances}
         main_embed = discord.Embed(
@@ -3159,20 +2955,11 @@ class GiftOperations(commands.Cog):
                     try:
                         channel_id = int(channel_interaction.data["values"][0])
                         
-                        if self.mongo_enabled and self.gift_state_adapter is not None:
-                            state = self._get_state()
-                            state.setdefault('gift_channels', {})
-                            state['gift_channels'][str(alliance_id)] = int(channel_id)
-                            self._set_state(state)
-                        else:
-                            self.cursor.execute(
-                                """
-                                INSERT OR REPLACE INTO giftcode_channel (alliance_id, channel_id)
-                                VALUES (?, ?)
-                                """,
-                                (alliance_id, channel_id)
-                            )
-                            self.conn.commit()
+                        self.cursor.execute("""
+                            INSERT OR REPLACE INTO giftcode_channel (alliance_id, channel_id)
+                            VALUES (?, ?)
+                        """, (alliance_id, channel_id))
+                        self.conn.commit()
                         
                         success_embed = discord.Embed(
                             title="✅ Channel Configured",
@@ -3258,13 +3045,8 @@ class GiftOperations(commands.Cog):
                     alliance_name = alliance_names[alliance_id]
                     
                     # Get channel info for confirmation
-                    if self.mongo_enabled and self.gift_state_adapter is not None:
-                        state = self._get_state()
-                        cid = state.get('gift_channels', {}).get(str(alliance_id))
-                        result = (cid,) if cid else None
-                    else:
-                        self.cursor.execute("SELECT channel_id FROM giftcode_channel WHERE alliance_id = ?", (alliance_id,))
-                        result = self.cursor.fetchone()
+                    self.cursor.execute("SELECT channel_id FROM giftcode_channel WHERE alliance_id = ?", (alliance_id,))
+                    result = self.cursor.fetchone()
                     if not result:
                         await remove_select_interaction.response.send_message(
                             "❌ Configuration not found.",
@@ -3302,14 +3084,8 @@ class GiftOperations(commands.Cog):
                     
                     async def confirm_remove_callback(confirm_interaction: discord.Interaction):
                         try:
-                            if self.mongo_enabled and self.gift_state_adapter is not None:
-                                state = self._get_state()
-                                if 'gift_channels' in state and str(alliance_id) in state['gift_channels']:
-                                    del state['gift_channels'][str(alliance_id)]
-                                self._set_state(state)
-                            else:
-                                self.cursor.execute("DELETE FROM giftcode_channel WHERE alliance_id = ?", (alliance_id,))
-                                self.conn.commit()
+                            self.cursor.execute("DELETE FROM giftcode_channel WHERE alliance_id = ?", (alliance_id,))
+                            self.conn.commit()
                             
                             success_embed = discord.Embed(
                                 title="✅ Channel Configuration Removed",
@@ -3386,25 +3162,13 @@ class GiftOperations(commands.Cog):
             )
             return
         
-        # Get alliances with configured channels (Mongo preferred)
-        if self.mongo_enabled and self.gift_state_adapter is not None:
-            state = self._get_state()
-            channels_map = state.get('gift_channels', {})
-            channel_configs = [
-                (int(aid), int(cid))
-                for aid, cid in channels_map.items()
-                if str(aid).isdigit() and str(cid).isdigit()
-            ]
-            channel_configs.sort(key=lambda t: t[0])
-        else:
-            self.cursor.execute(
-                """
-                SELECT alliance_id, channel_id 
-                FROM giftcode_channel
-                ORDER BY alliance_id
-                """
-            )
-            channel_configs = self.cursor.fetchall()
+        # Get alliances with configured channels
+        self.cursor.execute("""
+            SELECT alliance_id, channel_id 
+            FROM giftcode_channel
+            ORDER BY alliance_id
+        """)
+        channel_configs = self.cursor.fetchall()
         
         if not channel_configs:
             await interaction.response.send_message(
@@ -3469,19 +3233,11 @@ class GiftOperations(commands.Cog):
             alliance_name = alliance_names[alliance_id]
             
             # Get fresh channel info from database (in case it was recently changed)
-            if self.mongo_enabled and self.gift_state_adapter is not None:
-                state = self._get_state()
-                cid = state.get('gift_channels', {}).get(str(alliance_id))
-                result = (cid,) if cid else None
-            else:
-                self.cursor.execute(
-                    """
-                    SELECT channel_id FROM giftcode_channel 
-                    WHERE alliance_id = ?
-                    """,
-                    (alliance_id,)
-                )
-                result = self.cursor.fetchone()
+            self.cursor.execute("""
+                SELECT channel_id FROM giftcode_channel 
+                WHERE alliance_id = ?
+            """, (alliance_id,))
+            result = self.cursor.fetchone()
             
             if not result:
                 await select_interaction.response.send_message(
@@ -3638,16 +3394,8 @@ class GiftOperations(commands.Cog):
             )
             return
 
-        if self.mongo_enabled and self.gift_state_adapter is not None:
-            state = self._get_state()
-            current_status = {
-                int(aid): int(status)
-                for aid, status in state.get('gift_auto_control', {}).items()
-                if str(aid).isdigit()
-            }
-        else:
-            self.cursor.execute("SELECT alliance_id, status FROM giftcodecontrol")
-            current_status = dict(self.cursor.fetchall())
+        self.cursor.execute("SELECT alliance_id, status FROM giftcodecontrol")
+        current_status = dict(self.cursor.fetchall())
 
         alliances_with_counts = []
         for alliance_id, name in available_alliances:
@@ -3690,24 +3438,18 @@ class GiftOperations(commands.Cog):
                 
                 if selected_value in ["enable_all", "disable_all"]:
                     status = 1 if selected_value == "enable_all" else 0
-                    if self.mongo_enabled and self.gift_state_adapter is not None:
-                        state = self._get_state()
-                        state['gift_auto_control'] = {
-                            str(aid): status for aid, _, _ in alliances_with_counts
-                        }
-                        self._set_state(state)
-                    else:
-                        for alliance_id, _, _ in alliances_with_counts:
-                            self.cursor.execute(
-                                """
-                                INSERT INTO giftcodecontrol (alliance_id, status) 
-                                VALUES (?, ?) 
-                                ON CONFLICT(alliance_id) 
-                                DO UPDATE SET status = excluded.status
-                                """,
-                                (alliance_id, status)
-                            )
-                        self.conn.commit()
+                    
+                    for alliance_id, _, _ in alliances_with_counts:
+                        self.cursor.execute(
+                            """
+                            INSERT INTO giftcodecontrol (alliance_id, status) 
+                            VALUES (?, ?) 
+                            ON CONFLICT(alliance_id) 
+                            DO UPDATE SET status = excluded.status
+                            """,
+                            (alliance_id, status)
+                        )
+                    self.conn.commit()
 
                     status_text = "enabled" if status == 1 else "disabled"
                     success_embed = discord.Embed(
@@ -3753,22 +3495,16 @@ class GiftOperations(commands.Cog):
                     try:
                         status = 1 if button_interaction.data['custom_id'] == "confirm" else 0
                         
-                        if self.mongo_enabled and self.gift_state_adapter is not None:
-                            state = self._get_state()
-                            state.setdefault('gift_auto_control', {})
-                            state['gift_auto_control'][str(alliance_id)] = status
-                            self._set_state(state)
-                        else:
-                            self.cursor.execute(
-                                """
-                                INSERT INTO giftcodecontrol (alliance_id, status) 
-                                VALUES (?, ?) 
-                                ON CONFLICT(alliance_id) 
-                                DO UPDATE SET status = excluded.status
-                                """,
-                                (alliance_id, status)
-                            )
-                            self.conn.commit()
+                        self.cursor.execute(
+                            """
+                            INSERT INTO giftcodecontrol (alliance_id, status) 
+                            VALUES (?, ?) 
+                            ON CONFLICT(alliance_id) 
+                            DO UPDATE SET status = excluded.status
+                            """,
+                            (alliance_id, status)
+                        )
+                        self.conn.commit()
 
                         status_text = "enabled" if status == 1 else "disabled"
                         success_embed = discord.Embed(

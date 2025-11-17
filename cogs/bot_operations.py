@@ -6,7 +6,19 @@ import sqlite3
 import asyncio
 import requests
 from .alliance_member_operations import AllianceSelectView
-from mongo_adapters import mongo_enabled, AdminPermissionsAdapter
+
+# Mongo admin adapters (fallback to SQLite if not available)
+try:
+    from db.admin_adapters import AdminAdapter, AdminAssignmentsAdapter
+except Exception:
+    AdminAdapter = None
+    AdminAssignmentsAdapter = None
+
+# Import Mongo adapters module to access alliance metadata/members when available
+try:
+    from db import mongo_adapters as mongo_ad
+except Exception:
+    mongo_ad = None
 
 class BotOperations(commands.Cog):
     def __init__(self, bot, conn):
@@ -51,6 +63,154 @@ class BotOperations(commands.Cog):
                 
         except Exception as e:
             pass
+
+    # --- Helpers: Mongo-first with SQLite fallback for admin and alliance data ---
+    def _mongo_admin_enabled(self) -> bool:
+        try:
+            return bool(AdminAdapter) and bool(os.getenv('MONGO_URI'))
+        except Exception:
+            return False
+
+    def _is_global_admin(self, user_id: int) -> bool:
+        # Mongo-backed check
+        try:
+            if self._mongo_admin_enabled():
+                admins = AdminAdapter.get_admins() or []
+                for aid, is_initial in admins:
+                    if int(aid) == int(user_id) and int(is_initial) == 1:
+                        return True
+                return False
+        except Exception:
+            pass
+
+        # SQLite fallback
+        try:
+            self.settings_cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (user_id,))
+            r = self.settings_cursor.fetchone()
+            return bool(r and int(r[0]) == 1)
+        except Exception:
+            return False
+
+    def _get_admins(self):
+        # Returns list of tuples (admin_id, is_initial)
+        try:
+            if self._mongo_admin_enabled():
+                return AdminAdapter.get_admins() or []
+        except Exception:
+            pass
+        try:
+            self.settings_cursor.execute("SELECT id, is_initial FROM admin ORDER BY is_initial DESC, id")
+            return self.settings_cursor.fetchall() or []
+        except Exception:
+            return []
+
+    def _add_admin(self, user_id: int) -> bool:
+        try:
+            if self._mongo_admin_enabled():
+                return AdminAdapter.add_admin(int(user_id), 0)
+        except Exception:
+            pass
+        try:
+            self.settings_cursor.execute("""
+                INSERT OR IGNORE INTO admin (id, is_initial)
+                VALUES (?, 0)
+            """, (user_id,))
+            self.settings_db.commit()
+            return True
+        except Exception:
+            return False
+
+    def _assign_admin_to_alliance(self, admin_id: int, alliance_id: int) -> bool:
+        try:
+            if self._mongo_admin_enabled() and AdminAssignmentsAdapter:
+                return AdminAssignmentsAdapter.add_assignment(int(admin_id), int(alliance_id))
+        except Exception:
+            pass
+        try:
+            with sqlite3.connect('db/settings.sqlite') as settings_db:
+                cursor = settings_db.cursor()
+                cursor.execute("""
+                    INSERT INTO adminserver (admin, alliances_id)
+                    VALUES (?, ?)
+                """, (admin_id, alliance_id))
+                settings_db.commit()
+                return True
+        except Exception:
+            return False
+
+    def _remove_admin(self, admin_id: int) -> bool:
+        try:
+            if self._mongo_admin_enabled():
+                ok = AdminAdapter.remove_admin(int(admin_id))
+                if AdminAssignmentsAdapter:
+                    try:
+                        AdminAssignmentsAdapter.clear_admin(int(admin_id))
+                    except Exception:
+                        pass
+                return ok
+        except Exception:
+            pass
+        try:
+            self.settings_cursor.execute("DELETE FROM adminserver WHERE admin = ?", (admin_id,))
+            self.settings_cursor.execute("DELETE FROM admin WHERE id = ?", (admin_id,))
+            self.settings_db.commit()
+            return True
+        except Exception:
+            return False
+
+    def _get_alliances_with_counts(self):
+        # Returns list of tuples: (alliance_id, name, member_count)
+        # Try Mongo metadata + members first
+        try:
+            if mongo_ad and mongo_ad.mongo_enabled():
+                alliances_meta = None
+                if hasattr(mongo_ad, 'AllianceMetadataAdapter'):
+                    alliances_meta = getattr(mongo_ad, 'AllianceMetadataAdapter').get_metadata('alliances') or {}
+                members = []
+                try:
+                    if hasattr(mongo_ad, 'AllianceMembersAdapter'):
+                        members = getattr(mongo_ad, 'AllianceMembersAdapter').get_all_members() or []
+                except Exception:
+                    members = []
+
+                out = []
+                # alliances_meta may be dict keyed by alliance_id -> {name: ...}
+                if isinstance(alliances_meta, dict) and alliances_meta:
+                    for k, v in alliances_meta.items():
+                        try:
+                            aid = int(k)
+                        except Exception:
+                            try:
+                                aid = int(v.get('id'))
+                            except Exception:
+                                continue
+                        name = v.get('name') or str(aid)
+                        count = 0
+                        try:
+                            count = sum(1 for d in members if int(d.get('alliance') or d.get('alliance_id') or 0) == aid)
+                        except Exception:
+                            count = 0
+                        out.append((aid, name, count))
+                    # Sort by name
+                    out.sort(key=lambda x: (x[1] or '').lower())
+                    return out
+        except Exception:
+            pass
+
+        # SQLite fallback
+        try:
+            self.c_alliance.execute("SELECT alliance_id, name FROM alliance_list ORDER BY name")
+            alliances = self.c_alliance.fetchall() or []
+            out = []
+            for alliance_id, name in alliances:
+                with sqlite3.connect('db/users.sqlite') as users_db:
+                    cursor = users_db.cursor()
+                    cursor.execute("SELECT COUNT(*) FROM users WHERE alliance = ?", (alliance_id,))
+                    member_count = int(cursor.fetchone()[0])
+                out.append((alliance_id, name, member_count))
+            return out
+        except Exception:
+            return []
 
     def __del__(self):
         try:
@@ -153,31 +313,22 @@ class BotOperations(commands.Cog):
             try:
                 if custom_id == "assign_alliance":
                     try:
-                        with sqlite3.connect('db/settings.sqlite') as settings_db:
-                            cursor = settings_db.cursor()
-                            cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (interaction.user.id,))
-                            result = cursor.fetchone()
-                            
-                            if not result or result[0] != 1:
-                                await interaction.response.send_message(
-                                    "❌ Only global administrators can use this command.", 
-                                    ephemeral=True
-                                )
-                                return
+                        # Permission check via Mongo-first, fallback to SQLite
+                        if not self._is_global_admin(interaction.user.id):
+                            await interaction.response.send_message(
+                                "❌ Only global administrators can use this command.", 
+                                ephemeral=True
+                            )
+                            return
 
-                            cursor.execute("""
-                                SELECT id, is_initial 
-                                FROM admin 
-                                ORDER BY is_initial DESC, id
-                            """)
-                            admins = cursor.fetchall()
+                        admins = self._get_admins()
 
-                            if not admins:
-                                await interaction.response.send_message(
-                                    "❌ No administrators found.", 
-                                    ephemeral=True
-                                )
-                                return
+                        if not admins:
+                            await interaction.response.send_message(
+                                "❌ No administrators found.", 
+                                ephemeral=True
+                            )
+                            return
 
                             admin_options = []
                             for admin_id, is_initial in admins:
@@ -218,13 +369,8 @@ class BotOperations(commands.Cog):
                             async def admin_callback(admin_interaction: discord.Interaction):
                                 try:
                                     selected_admin_id = int(admin_select.values[0])
-                                    
-                                    self.c_alliance.execute("""
-                                        SELECT alliance_id, name 
-                                        FROM alliance_list 
-                                        ORDER BY name
-                                    """)
-                                    alliances = self.c_alliance.fetchall()
+
+                                    alliances = self._get_alliances_with_counts()
 
                                     if not alliances:
                                         await admin_interaction.response.send_message(
@@ -234,12 +380,12 @@ class BotOperations(commands.Cog):
                                         return
 
                                     alliances_with_counts = []
-                                    for alliance_id, name in alliances:
-                                        with sqlite3.connect('db/users.sqlite') as users_db:
-                                            cursor = users_db.cursor()
-                                            cursor.execute("SELECT COUNT(*) FROM users WHERE alliance = ?", (alliance_id,))
-                                            member_count = cursor.fetchone()[0]
-                                            alliances_with_counts.append((alliance_id, name, member_count))
+                                    for item in alliances:
+                                        try:
+                                            alliance_id, name, member_count = item
+                                            alliances_with_counts.append((int(alliance_id), name, int(member_count)))
+                                        except Exception:
+                                            continue
 
                                     alliance_embed = discord.Embed(
                                         title="🏰 Alliance Selection",
@@ -257,19 +403,36 @@ class BotOperations(commands.Cog):
                                     async def alliance_callback(alliance_interaction: discord.Interaction):
                                         try:
                                             selected_alliance_id = int(view.current_select.values[0])
-                                            
-                                            with sqlite3.connect('db/settings.sqlite') as settings_db:
-                                                cursor = settings_db.cursor()
-                                                cursor.execute("""
-                                                    INSERT INTO adminserver (admin, alliances_id)
-                                                    VALUES (?, ?)
-                                                """, (selected_admin_id, selected_alliance_id))
-                                                settings_db.commit()
 
-                                            with sqlite3.connect('db/alliance.sqlite') as alliance_db:
-                                                cursor = alliance_db.cursor()
-                                                cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (selected_alliance_id,))
-                                                alliance_name = cursor.fetchone()[0]
+                                            # Persist assignment (Mongo first)
+                                            saved = self._assign_admin_to_alliance(selected_admin_id, selected_alliance_id)
+                                            if not saved:
+                                                await alliance_interaction.response.send_message(
+                                                    "❌ Failed to assign alliance to administrator.",
+                                                    ephemeral=True
+                                                )
+                                                return
+
+                                            # Resolve alliance name
+                                            alliance_name = None
+                                            try:
+                                                if mongo_ad and mongo_ad.mongo_enabled() and hasattr(mongo_ad, 'AllianceMetadataAdapter'):
+                                                    meta = getattr(mongo_ad, 'AllianceMetadataAdapter').get_metadata('alliances') or {}
+                                                    if isinstance(meta, dict):
+                                                        v = meta.get(str(selected_alliance_id))
+                                                        if v:
+                                                            alliance_name = v.get('name')
+                                            except Exception:
+                                                pass
+                                            if not alliance_name:
+                                                try:
+                                                    with sqlite3.connect('db/alliance.sqlite') as alliance_db:
+                                                        cursor = alliance_db.cursor()
+                                                        cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (selected_alliance_id,))
+                                                        r = cursor.fetchone()
+                                                        alliance_name = r[0] if r else str(selected_alliance_id)
+                                                except Exception:
+                                                    alliance_name = str(selected_alliance_id)
                                             try:
                                                 admin_user = await self.bot.fetch_user(selected_admin_id)
                                                 admin_name = admin_user.name
@@ -362,10 +525,8 @@ class BotOperations(commands.Cog):
                             pass
                 elif custom_id == "add_admin":
                     try:
-                        self.settings_cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (interaction.user.id,))
-                        result = self.settings_cursor.fetchone()
-                        
-                        if not result or result[0] != 1:
+                        # Mongo-first permission check
+                        if not self._is_global_admin(interaction.user.id):
                             await interaction.response.send_message(
                                 "❌ Only global administrators can use this command", 
                                 ephemeral=True
@@ -386,11 +547,13 @@ class BotOperations(commands.Cog):
                             
                             await message.delete()
                             
-                            self.settings_cursor.execute("""
-                                INSERT OR IGNORE INTO admin (id, is_initial)
-                                VALUES (?, 0)
-                            """, (new_admin.id,))
-                            self.settings_db.commit()
+                            ok = self._add_admin(new_admin.id)
+                            if not ok:
+                                await interaction.edit_original_response(
+                                    content="❌ Failed to add administrator.",
+                                    embed=None
+                                )
+                                return
 
                             success_embed = discord.Embed(
                                 title="✅ Administrator Successfully Added",
@@ -425,21 +588,13 @@ class BotOperations(commands.Cog):
 
                 elif custom_id == "remove_admin":
                     try:
-                        self.settings_cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (interaction.user.id,))
-                        result = self.settings_cursor.fetchone()
-                        
-                        if not result or result[0] != 1:
+                        if not self._is_global_admin(interaction.user.id):
                             await interaction.response.send_message(
                                 "❌ Only global administrators can use this command.", 
                                 ephemeral=True
                             )
                             return
-
-                        self.settings_cursor.execute("""
-                            SELECT id, is_initial FROM admin 
-                            ORDER BY is_initial DESC, id
-                        """)
-                        admins = self.settings_cursor.fetchall()
+                        admins = self._get_admins()
 
                         if not admins:
                             await interaction.response.send_message(
@@ -488,29 +643,53 @@ class BotOperations(commands.Cog):
                             try:
                                 selected_admin_id = int(select_interaction.data["values"][0])
                                 
-                                self.settings_cursor.execute("""
-                                    SELECT id, is_initial FROM admin WHERE id = ?
-                                """, (selected_admin_id,))
-                                admin_info = self.settings_cursor.fetchone()
+                                # Admin info tuple (id, is_initial)
+                                admin_info = next(((aid, is_init) for aid, is_init in admins if int(aid) == int(selected_admin_id)), (selected_admin_id, 0))
 
-                                self.settings_cursor.execute("""
-                                    SELECT alliances_id
-                                    FROM adminserver
-                                    WHERE admin = ?
-                                """, (selected_admin_id,))
-                                admin_alliances = self.settings_cursor.fetchall()
+                                # Fetch alliances assigned to admin
+                                admin_alliances = []
+                                try:
+                                    if self._mongo_admin_enabled() and AdminAssignmentsAdapter:
+                                        admin_alliances = [(aid,) for aid in AdminAssignmentsAdapter.get_admin_alliances(int(selected_admin_id))]
+                                except Exception:
+                                    admin_alliances = []
+                                if not admin_alliances:
+                                    try:
+                                        self.settings_cursor.execute("""
+                                            SELECT alliances_id FROM adminserver WHERE admin = ?
+                                        """, (selected_admin_id,))
+                                        admin_alliances = self.settings_cursor.fetchall() or []
+                                    except Exception:
+                                        admin_alliances = []
 
                                 alliance_names = []
                                 if admin_alliances: 
                                     alliance_ids = [alliance[0] for alliance in admin_alliances]
                                     
-                                    alliance_cursor = self.alliance_db.cursor()
-                                    placeholders = ','.join('?' * len(alliance_ids))
-                                    query = f"SELECT alliance_id, name FROM alliance_list WHERE alliance_id IN ({placeholders})"
-                                    alliance_cursor.execute(query, alliance_ids)
-                                    
-                                    alliance_results = alliance_cursor.fetchall()
-                                    alliance_names = [alliance[1] for alliance in alliance_results]
+                                    # Resolve alliance names via Mongo metadata first
+                                    alliance_names = []
+                                    resolved = False
+                                    try:
+                                        if mongo_ad and mongo_ad.mongo_enabled() and hasattr(mongo_ad, 'AllianceMetadataAdapter'):
+                                            meta = getattr(mongo_ad, 'AllianceMetadataAdapter').get_metadata('alliances') or {}
+                                            if isinstance(meta, dict):
+                                                for aid in alliance_ids:
+                                                    v = meta.get(str(aid))
+                                                    if v and v.get('name'):
+                                                        alliance_names.append(v.get('name'))
+                                                resolved = True
+                                    except Exception:
+                                        pass
+                                    if not resolved:
+                                        try:
+                                            alliance_cursor = self.alliance_db.cursor()
+                                            placeholders = ','.join('?' * len(alliance_ids))
+                                            query = f"SELECT alliance_id, name FROM alliance_list WHERE alliance_id IN ({placeholders})"
+                                            alliance_cursor.execute(query, alliance_ids)
+                                            alliance_results = alliance_cursor.fetchall()
+                                            alliance_names = [alliance[1] for alliance in alliance_results]
+                                        except Exception:
+                                            alliance_names = []
 
                                 try:
                                     user = await self.bot.fetch_user(selected_admin_id)
@@ -567,9 +746,13 @@ class BotOperations(commands.Cog):
 
                                 async def confirm_callback(button_interaction: discord.Interaction):
                                     try:
-                                        self.settings_cursor.execute("DELETE FROM adminserver WHERE admin = ?", (selected_admin_id,))
-                                        self.settings_cursor.execute("DELETE FROM admin WHERE id = ?", (selected_admin_id,))
-                                        self.settings_db.commit()
+                                        ok = self._remove_admin(int(selected_admin_id))
+                                        if not ok:
+                                            await button_interaction.response.send_message(
+                                                "❌ Failed to delete administrator.",
+                                                ephemeral=True
+                                            )
+                                            return
 
                                         success_embed = discord.Embed(
                                             title="✅ Administrator Deleted Successfully",
@@ -669,101 +852,109 @@ class BotOperations(commands.Cog):
 
         elif custom_id == "view_admin_permissions":
             try:
-                # Check global admin via Mongo first, fallback to SQLite
-                is_global = False
-                if mongo_enabled():
-                    is_global = AdminPermissionsAdapter.is_global_admin(interaction.user.id)
-                if not is_global:
-                    with sqlite3.connect('db/settings.sqlite') as settings_db:
-                        cursor = settings_db.cursor()
-                        cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (interaction.user.id,))
-                        result = cursor.fetchone()
-                        is_global = bool(result and result[0] == 1)
-
-                if not is_global:
+                # Permission check
+                if not self._is_global_admin(interaction.user.id):
                     await interaction.response.send_message(
                         "❌ Only global administrators can use this command.", 
                         ephemeral=True
                     )
                     return
 
-                # Load permissions: prefer Mongo adapter; fallback to SQLite
-                admin_permissions = []
-                if mongo_enabled():
-                    admin_permissions = AdminPermissionsAdapter.list_permissions()
-                else:
-                    with sqlite3.connect('db/settings.sqlite') as settings_db:
-                        cursor = settings_db.cursor()
-                        cursor.execute("""
-                            SELECT a.id, a.is_initial, admin_server.alliances_id
-                            FROM admin a
-                            JOIN adminserver admin_server ON a.id = admin_server.admin
-                            ORDER BY a.is_initial DESC, a.id
-                        """)
-                        admin_permissions = cursor.fetchall()
-
-                if not admin_permissions:
-                    await interaction.response.send_message(
-                        "No admin permissions found.", 
-                        ephemeral=True
-                    )
-                    return
-
-                # Resolve alliance names from alliance.sqlite
-                admin_alliance_info = []
-                with sqlite3.connect('db/alliance.sqlite') as alliance_db:
-                    alliance_cursor = alliance_db.cursor()
-                    for admin_id, is_initial, alliance_id in admin_permissions:
-                        alliance_cursor.execute(
-                            "SELECT name FROM alliance_list WHERE alliance_id = ?",
-                            (alliance_id,)
-                        )
-                        alliance_result = alliance_cursor.fetchone()
-                        if alliance_result:
-                            admin_alliance_info.append((admin_id, is_initial, alliance_id, alliance_result[0]))
-
-                embed = discord.Embed(
-                    title="👥 Admin Alliance Permissions",
-                    description=(
-                        "Select an admin to view or modify permissions:\n\n"
-                        "**Admin List**\n"
-                        "━━━━━━━━━━━━━━━━━━━━━━\n"
-                    ),
-                    color=discord.Color.blue()
-                )
-
-                options = []
-                for admin_id, is_initial, alliance_id, alliance_name in admin_alliance_info:
+                # Build admin->alliance permissions list via Mongo first
+                admin_permissions = []  # tuples of (admin_id, is_initial, alliance_id)
+                admins = self._get_admins()
+                if self._mongo_admin_enabled() and AdminAssignmentsAdapter:
                     try:
-                        user = await interaction.client.fetch_user(admin_id)
-                        admin_name = user.name
-                    except:
-                        admin_name = f"Unknown User ({admin_id})"
+                        for aid, is_init in admins:
+                            alliances = AdminAssignmentsAdapter.get_admin_alliances(int(aid))
+                            for al in alliances:
+                                admin_permissions.append((int(aid), int(is_init), int(al)))
+                    except Exception:
+                        admin_permissions = []
+                if not admin_permissions:
+                    try:
+                        with sqlite3.connect('db/settings.sqlite') as settings_db:
+                            cursor = settings_db.cursor()
+                            cursor.execute("""
+                                SELECT a.id, a.is_initial, admin_server.alliances_id
+                                FROM admin a
+                                JOIN adminserver admin_server ON a.id = admin_server.admin
+                                ORDER BY a.is_initial DESC, a.id
+                            """)
+                            admin_permissions = cursor.fetchall() or []
+                    except Exception:
+                        admin_permissions = []
 
-                    option_label = f"{admin_name[:50]}"
-                    option_desc = f"Alliance: {alliance_name[:50]}"
-                    
-                    options.append(
-                        discord.SelectOption(
-                            label=option_label,
-                            value=f"{admin_id}:{alliance_id}",
-                            description=option_desc,
-                            emoji="👑" if is_initial == 1 else "👤"
+                        if not admin_permissions:
+                            await interaction.response.send_message(
+                                "No admin permissions found.", 
+                                ephemeral=True
+                            )
+                            return
+
+                        admin_alliance_info = []
+                        for admin_id, is_initial, alliance_id in admin_permissions:
+                            # Resolve name via Mongo metadata first
+                            alliance_name = None
+                            try:
+                                if mongo_ad and mongo_ad.mongo_enabled() and hasattr(mongo_ad, 'AllianceMetadataAdapter'):
+                                    meta = getattr(mongo_ad, 'AllianceMetadataAdapter').get_metadata('alliances') or {}
+                                    v = meta.get(str(alliance_id)) if isinstance(meta, dict) else None
+                                    if v:
+                                        alliance_name = v.get('name')
+                            except Exception:
+                                pass
+                            if not alliance_name:
+                                try:
+                                    self.c_alliance.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (alliance_id,))
+                                    r = self.c_alliance.fetchone()
+                                    alliance_name = r[0] if r else str(alliance_id)
+                                except Exception:
+                                    alliance_name = str(alliance_id)
+                            admin_alliance_info.append((admin_id, is_initial, alliance_id, alliance_name))
+
+                        embed = discord.Embed(
+                            title="👥 Admin Alliance Permissions",
+                            description=(
+                                "Select an admin to view or modify permissions:\n\n"
+                                "**Admin List**\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                            ),
+                            color=discord.Color.blue()
                         )
-                    )
 
-                if not options:
-                    await interaction.response.send_message(
-                        "No admin-alliance permissions found.", 
-                        ephemeral=True
-                    )
-                    return
+                        options = []
+                        for admin_id, is_initial, alliance_id, alliance_name in admin_alliance_info:
+                            try:
+                                user = await interaction.client.fetch_user(admin_id)
+                                admin_name = user.name
+                            except:
+                                admin_name = f"Unknown User ({admin_id})"
 
-                select = discord.ui.Select(
-                    placeholder="Select an admin to remove permission...",
-                    options=options,
-                    custom_id="admin_permission_select"
-                )
+                            option_label = f"{admin_name[:50]}"
+                            option_desc = f"Alliance: {alliance_name[:50]}"
+                            
+                            options.append(
+                                discord.SelectOption(
+                                    label=option_label,
+                                    value=f"{admin_id}:{alliance_id}",
+                                    description=option_desc,
+                                    emoji="👑" if is_initial == 1 else "👤"
+                                )
+                            )
+
+                        if not options:
+                            await interaction.response.send_message(
+                                "No admin-alliance permissions found.", 
+                                ephemeral=True
+                            )
+                            return
+
+                        select = discord.ui.Select(
+                            placeholder="Select an admin to remove permission...",
+                            options=options,
+                            custom_id="admin_permission_select"
+                        )
 
                         async def select_callback(select_interaction: discord.Interaction):
                             try:
@@ -783,7 +974,22 @@ class BotOperations(commands.Cog):
                                 
                                 async def confirm_callback(confirm_interaction: discord.Interaction):
                                     try:
-                                        success = await self.confirm_permission_removal(int(admin_id), int(alliance_id), confirm_interaction)
+                                        # Remove assignment via Mongo-first, fallback to SQLite
+                                        success = False
+                                        try:
+                                            if self._mongo_admin_enabled() and AdminAssignmentsAdapter:
+                                                success = AdminAssignmentsAdapter.remove_assignment(int(admin_id), int(alliance_id))
+                                        except Exception:
+                                            success = False
+                                        if not success:
+                                            try:
+                                                with sqlite3.connect('db/settings.sqlite') as settings_db:
+                                                    cursor = settings_db.cursor()
+                                                    cursor.execute("DELETE FROM adminserver WHERE admin = ? AND alliances_id = ?", (int(admin_id), int(alliance_id)))
+                                                    settings_db.commit()
+                                                    success = cursor.rowcount > 0
+                                            except Exception:
+                                                success = False
                                         
                                         if success:
                                             success_embed = discord.Embed(
@@ -868,39 +1074,16 @@ class BotOperations(commands.Cog):
 
         elif custom_id == "view_administrators":
             try:
-                # Check global admin via Mongo first, fallback to SQLite
-                is_global = False
-                if mongo_enabled():
-                    is_global = AdminPermissionsAdapter.is_global_admin(interaction.user.id)
-                if not is_global:
-                    self.settings_cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (interaction.user.id,))
-                    result = self.settings_cursor.fetchone()
-                    is_global = bool(result and result[0] == 1)
-                if not is_global:
+                # Permission check via Mongo-first, fallback to SQLite
+                if not self._is_global_admin(interaction.user.id):
                     await interaction.response.send_message(
                         "❌ Only global administrators can use this command.", 
                         ephemeral=True
                     )
                     return
 
-                # Get all admins: prefer Mongo; fallback to SQLite
-                admins = []
-                if mongo_enabled():
-                    try:
-                        # get all admin docs: (_id, is_initial)
-                        from db.mongo_adapters import _get_db  # type: ignore
-                        db = _get_db()
-                        docs = list(db[AdminPermissionsAdapter.COLL].find({}, projection={'_id': 1, 'is_initial': 1}))
-                        admins = [(int(d.get('_id')), int(d.get('is_initial', 0))) for d in docs]
-                    except Exception:
-                        admins = []
-                if not admins:
-                    self.settings_cursor.execute("""
-                        SELECT a.id, a.is_initial 
-                        FROM admin a
-                        ORDER BY a.is_initial DESC, a.id
-                    """)
-                    admins = self.settings_cursor.fetchall()
+                # Fetch admins via Mongo-first helper
+                admins = self._get_admins()
 
                 if not admins:
                     await interaction.response.send_message(
@@ -921,26 +1104,52 @@ class BotOperations(commands.Cog):
                         admin_name = user.name
                         admin_avatar = user.display_avatar.url
 
+                        # Gather alliance IDs via Mongo-first, fallback to SQLite
                         alliance_ids = []
-                        if mongo_enabled():
-                            alliance_ids = [(aid,) for aid in AdminPermissionsAdapter.get_admin_alliance_ids(admin_id)]
-                        else:
-                            self.settings_cursor.execute(
-                                "SELECT alliances_id FROM adminserver WHERE admin = ?",
-                                (admin_id,)
-                            )
-                            alliance_ids = self.settings_cursor.fetchall()
+                        try:
+                            if self._mongo_admin_enabled() and AdminAssignmentsAdapter:
+                                alliance_ids = AdminAssignmentsAdapter.get_admin_alliances(int(admin_id)) or []
+                        except Exception:
+                            alliance_ids = []
+                        if not alliance_ids:
+                            try:
+                                self.settings_cursor.execute(
+                                    "SELECT alliances_id FROM adminserver WHERE admin = ?",
+                                    (admin_id,)
+                                )
+                                rows = self.settings_cursor.fetchall() or []
+                                alliance_ids = [int(r[0]) for r in rows]
+                            except Exception:
+                                alliance_ids = []
 
                         alliance_names = []
                         if alliance_ids:
-                            alliance_id_list = [aid[0] for aid in alliance_ids]
-                            placeholders = ','.join('?' * len(alliance_id_list))
-                            self.c_alliance.execute(f"""
-                                SELECT name 
-                                FROM alliance_list 
-                                WHERE alliance_id IN ({placeholders})
-                            """, alliance_id_list)
-                            alliance_names = [name[0] for name in self.c_alliance.fetchall()]
+                            # Resolve names via Mongo metadata first
+                            names_map = {}
+                            try:
+                                if mongo_ad and mongo_ad.mongo_enabled() and hasattr(mongo_ad, 'AllianceMetadataAdapter'):
+                                    meta = getattr(mongo_ad, 'AllianceMetadataAdapter').get_metadata('alliances') or {}
+                                    if isinstance(meta, dict):
+                                        for aid in alliance_ids:
+                                            v = meta.get(str(aid))
+                                            if v and isinstance(v, dict) and 'name' in v:
+                                                names_map[int(aid)] = v['name']
+                            except Exception:
+                                pass
+                            # Fallback to SQLite for any unresolved names
+                            unresolved = [int(aid) for aid in alliance_ids if int(aid) not in names_map]
+                            if unresolved:
+                                try:
+                                    placeholders = ','.join('?' * len(unresolved))
+                                    self.c_alliance.execute(
+                                        f"SELECT alliance_id, name FROM alliance_list WHERE alliance_id IN ({placeholders})",
+                                        unresolved
+                                    )
+                                    for row in self.c_alliance.fetchall() or []:
+                                        names_map[int(row[0])] = row[1]
+                                except Exception:
+                                    pass
+                            alliance_names = [names_map.get(int(aid), str(aid)) for aid in alliance_ids]
 
                         admin_info = (
                             f"👤 **Name:** {admin_name}\n"
@@ -1219,23 +1428,13 @@ class BotOperations(commands.Cog):
 
     async def confirm_permission_removal(self, admin_id: int, alliance_id: int, confirm_interaction: discord.Interaction):
         try:
-            # Prefer Mongo removal; fallback to SQLite
-            if mongo_enabled():
-                ok = AdminPermissionsAdapter.remove_permission(admin_id, alliance_id)
-                if ok:
-                    return True
-            # Fallback to SQLite
-            try:
-                self.settings_cursor.execute(
-                    "DELETE FROM adminserver WHERE admin = ? AND alliances_id = ?",
-                    (admin_id, alliance_id)
-                )
-                self.settings_db.commit()
-                return True
-            except Exception:
-                pass
-            return False
-        except Exception:
+            self.settings_cursor.execute("""
+                DELETE FROM adminserver 
+                WHERE admin = ? AND alliances_id = ?
+            """, (admin_id, alliance_id))
+            self.settings_db.commit()
+            return True
+        except Exception as e:
             return False
 
     async def check_for_updates(self):

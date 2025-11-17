@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from mongo_adapters import mongo_enabled, AllianceMembersAdapter, UserProfilesAdapter
+from db.mongo_adapters import mongo_enabled, AllianceMembersAdapter, UserProfilesAdapter
 import sqlite3
 import asyncio
 import time
@@ -123,14 +123,6 @@ class AllianceMemberOperations(commands.Cog):
         
         # Initialize login handler for centralized API management
         self.login_handler = LoginHandler()
-
-        # Log which storage backend is active for member operations
-        try:
-            backend = 'MongoDB' if mongo_enabled() and AllianceMembersAdapter is not None else 'SQLite'
-            self.log_message(f"[INIT] AllianceMemberOperations storage backend: {backend}")
-        except Exception:
-            # Avoid any startup crash due to logging
-            pass
 
     def log_message(self, message: str):
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')

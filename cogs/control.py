@@ -10,7 +10,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from .login_handler import LoginHandler
 try:
-    from mongo_adapters import mongo_enabled, AllianceMembersAdapter, AllianceMetadataAdapter
+    from db.mongo_adapters import mongo_enabled, AllianceMembersAdapter, AllianceMetadataAdapter
 except Exception:
     mongo_enabled = lambda: False
     AllianceMembersAdapter = None

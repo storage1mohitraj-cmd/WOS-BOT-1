@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import sqlite3
-from mongo_adapters import mongo_enabled, AdminPermissionsAdapter
 from datetime import datetime
 import os
 import re
@@ -1758,20 +1757,13 @@ class Attendance(commands.Cog):
             
             # Non-global admin - get only alliances they've been assigned to
             with sqlite3.connect('db/settings.sqlite') as settings_db:
-                # Prefer Mongo: get alliances the admin can manage
-                admin_alliance_ids = []
-                if mongo_enabled():
-                    try:
-                        admin_alliance_ids = [(aid,) for aid in AdminPermissionsAdapter.get_admin_alliance_ids(user_id)]
-                    except Exception:
-                        admin_alliance_ids = []
-                if not admin_alliance_ids:
-                    cursor = settings_db.cursor()
-                    cursor.execute(
-                        "SELECT alliances_id FROM adminserver WHERE admin = ?",
-                        (user_id,)
-                    )
-                    admin_alliance_ids = cursor.fetchall()
+                cursor = settings_db.cursor()
+                cursor.execute("""
+                    SELECT alliances_id 
+                    FROM adminserver 
+                    WHERE admin = ?
+                """, (user_id,))
+                admin_alliance_ids = cursor.fetchall()
                 
             if admin_alliance_ids:
                 # Validate that all alliance IDs are integers to prevent SQL injection
@@ -1833,22 +1825,12 @@ class Attendance(commands.Cog):
                     cursor.execute("SELECT alliance_id, name FROM alliance_list ORDER BY alliance_id")
                     alliances = cursor.fetchall()
             else:
-                # Non-global admin - get alliances via Mongo first, fallback to adminserver
-                allowed_alliances = set()
-                if mongo_enabled():
-                    try:
-                        allowed_alliances = set(AdminPermissionsAdapter.get_admin_alliance_ids(interaction.user.id))
-                    except Exception:
-                        allowed_alliances = set()
-                if not allowed_alliances:
-                    with sqlite3.connect('db/settings.sqlite') as settings_db:
-                        cursor = settings_db.cursor()
-                        cursor.execute(
-                            "SELECT alliances_id FROM adminserver WHERE admin = ?",
-                            (interaction.user.id,)
-                        )
-                        special_permissions_raw = cursor.fetchall()
-                        allowed_alliances = set(row[0] for row in special_permissions_raw)
+                # Non-global admin - get alliances from adminserver
+                with sqlite3.connect('db/settings.sqlite') as settings_db:
+                    cursor = settings_db.cursor()
+                    cursor.execute("SELECT alliances_id FROM adminserver WHERE admin = ?", (interaction.user.id,))
+                    special_permissions_raw = cursor.fetchall()
+                    allowed_alliances = set(row[0] for row in special_permissions_raw)
                 
                 if allowed_alliances:
                     with sqlite3.connect('db/alliance.sqlite') as db:
