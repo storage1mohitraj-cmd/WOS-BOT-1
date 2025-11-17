@@ -199,13 +199,18 @@ class Alliance(commands.Cog):
     @app_commands.command(name="settings", description="Open settings menu.")
     async def settings(self, interaction: discord.Interaction):
         try:
+            # Defer immediately to avoid 3s timeout and unify response handling
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+
             if interaction.guild is not None: # Check bot permissions only if in a guild
                 perm_check = interaction.guild.get_member(interaction.client.user.id)
                 if not perm_check.guild_permissions.administrator:
-                    await interaction.response.send_message(
-                        "Beeb boop 🤖 I need **Administrator** permissions to function. "
-                        "Go to server settings --> Roles --> find my role --> scroll down and turn on Administrator", 
-                        ephemeral=True
+                    await interaction.edit_original_response(
+                        content=(
+                            "Beeb boop 🤖 I need **Administrator** permissions to function. "
+                            "Go to server settings --> Roles --> find my role --> scroll down and turn on Administrator"
+                        )
                     )
                     return
                 
@@ -230,7 +235,7 @@ class Alliance(commands.Cog):
                     ),
                     color=discord.Color.green()
                 )
-                await interaction.response.send_message(embed=first_use_embed, ephemeral=True)
+                await interaction.edit_original_response(embed=first_use_embed)
                 
                 await asyncio.sleep(3)
                 
@@ -238,9 +243,8 @@ class Alliance(commands.Cog):
             admin = self.c_settings.fetchone()
 
             if admin is None:
-                await interaction.response.send_message(
-                    "You do not have permission to access this menu.", 
-                    ephemeral=True
+                await interaction.edit_original_response(
+                    content="You do not have permission to access this menu."
                 )
                 return
 
@@ -318,18 +322,17 @@ class Alliance(commands.Cog):
                 row=3
             ))
 
-            if admin_count == 0:
-                await interaction.edit_original_response(embed=embed, view=view)
-            else:
-                await interaction.response.send_message(embed=embed, view=view)
+            # Show menu via original deferred response
+            await interaction.edit_original_response(embed=embed, view=view)
 
         except Exception as e:
             if not any(error_code in str(e) for error_code in ["10062", "40060"]):
                 print(f"Settings command error: {e}")
             error_message = "An error occurred while processing your request."
-            if not interaction.response.is_done():
-                await interaction.response.send_message(error_message, ephemeral=True)
-            else:
+            try:
+                await interaction.edit_original_response(content=error_message)
+            except Exception:
+                # As a last resort, send a followup if original cannot be edited
                 await interaction.followup.send(error_message, ephemeral=True)
 
     @commands.Cog.listener()
