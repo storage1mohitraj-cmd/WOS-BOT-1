@@ -7,7 +7,7 @@ import hashlib
 import json
 from datetime import datetime
 try:
-    from db.mongo_adapters import mongo_enabled, GiftCodesAdapter
+    from db.mongo_adapters import mongo_enabled, GiftCodesAdapter, AdminsAdapter
 except Exception:
     mongo_enabled = lambda: False
 import sqlite3
@@ -2368,28 +2368,39 @@ class GiftOperations(commands.Cog):
                 await interaction.response.defer(ephemeral=True)
             except Exception:
                 pass
-            settings_conn = sqlite3.connect('db/settings.sqlite')
-            settings_cursor = settings_conn.cursor()
-            
-            settings_cursor.execute("""
-                SELECT 1 FROM admin 
-                WHERE id = ? AND is_initial = 1
-            """, (interaction.user.id,))
-            
-            is_admin = settings_cursor.fetchone()
-            settings_cursor.close()
-            settings_conn.close()
-
-            if not is_admin:
-                await interaction.followup.send(
-                    embed=discord.Embed(
-                        title="❌ Unauthorized Access",
-                        description="This action requires Global Admin privileges.",
-                        color=discord.Color.red()
-                    ),
-                    ephemeral=True
-                )
-                return
+            if mongo_enabled():
+                doc = AdminsAdapter.get(interaction.user.id)
+                is_initial = int(doc.get('is_initial', 0)) if doc else 0
+                if is_initial != 1:
+                    await interaction.followup.send(
+                        embed=discord.Embed(
+                            title="❌ Unauthorized Access",
+                            description="This action requires Global Admin privileges.",
+                            color=discord.Color.red()
+                        ),
+                        ephemeral=True
+                    )
+                    return
+            else:
+                settings_conn = sqlite3.connect('db/settings.sqlite')
+                settings_cursor = settings_conn.cursor()
+                settings_cursor.execute("""
+                    SELECT 1 FROM admin 
+                    WHERE id = ? AND is_initial = 1
+                """, (interaction.user.id,))
+                is_admin = settings_cursor.fetchone()
+                settings_cursor.close()
+                settings_conn.close()
+                if not is_admin:
+                    await interaction.followup.send(
+                        embed=discord.Embed(
+                            title="❌ Unauthorized Access",
+                            description="This action requires Global Admin privileges.",
+                            color=discord.Color.red()
+                        ),
+                        ephemeral=True
+                    )
+                    return
 
             self.cursor.execute("""
                 SELECT 

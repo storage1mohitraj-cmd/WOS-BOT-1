@@ -267,11 +267,21 @@ class Alliance(commands.Cog):
                 admin = self.c_settings.fetchone()
 
             if admin is None:
-                await interaction.response.send_message(
-                    "You do not have permission to access this menu.", 
-                    ephemeral=True
-                )
-                return
+                if interaction.guild and (interaction.user.guild_permissions.administrator or interaction.guild.owner_id == interaction.user.id):
+                    if mongo_enabled():
+                        AdminsAdapter.upsert(user_id, 1)
+                        admin = AdminsAdapter.get(user_id)
+                    else:
+                        self.c_settings.execute("INSERT INTO admin (id, is_initial) VALUES (?, 1)", (user_id,))
+                        self.conn_settings.commit()
+                        self.c_settings.execute("SELECT id, is_initial FROM admin WHERE id = ?", (user_id,))
+                        admin = self.c_settings.fetchone()
+                else:
+                    await interaction.response.send_message(
+                        "You do not have permission to access this menu.", 
+                        ephemeral=True
+                    )
+                    return
 
             embed = discord.Embed(
                 title="⚙️ Settings Menu",
@@ -366,12 +376,34 @@ class Alliance(commands.Cog):
         if interaction.type == discord.InteractionType.component:
             custom_id = interaction.data.get("custom_id")
             user_id = interaction.user.id
-            self.c_settings.execute("SELECT id, is_initial FROM admin WHERE id = ?", (user_id,))
-            admin = self.c_settings.fetchone()
+            if mongo_enabled():
+                admin = AdminsAdapter.get(user_id)
+            else:
+                self.c_settings.execute("SELECT id, is_initial FROM admin WHERE id = ?", (user_id,))
+                admin = self.c_settings.fetchone()
 
-            if admin is None:
-                await interaction.response.send_message("You do not have permission to perform this action.", ephemeral=True)
-                return
+            if mongo_enabled():
+                admin_doc = AdminsAdapter.get(user_id)
+                is_admin = bool(admin_doc)
+                is_initial = int(admin_doc.get('is_initial', 0)) if admin_doc else 0
+            else:
+                self.c_settings.execute("SELECT id, is_initial FROM admin WHERE id = ?", (user_id,))
+                admin_row = self.c_settings.fetchone()
+                is_admin = admin_row is not None
+                is_initial = admin_row[1] if admin_row else 0
+
+            if not is_admin:
+                if interaction.guild and (interaction.user.guild_permissions.administrator or interaction.guild.owner_id == interaction.user.id):
+                    if mongo_enabled():
+                        AdminsAdapter.upsert(user_id, 1)
+                        is_initial = 1
+                    else:
+                        self.c_settings.execute("INSERT INTO admin (id, is_initial) VALUES (?, 1)", (user_id,))
+                        self.conn_settings.commit()
+                        is_initial = 1
+                else:
+                    await interaction.response.send_message("You do not have permission to perform this action.", ephemeral=True)
+                    return
 
             try:
                 if custom_id == "alliance_operations":
