@@ -24,6 +24,11 @@ from .gift_operationsapi import GiftCodeAPI
 from .gift_captchasolver import GiftCaptchaSolver
 from collections import deque
 from .gift_operations_captcha import fetch_captcha as captcha_fetch, attempt_gift_code_with_api as captcha_attempt
+try:
+    from db.mongo_adapters import mongo_enabled, GiftCodesAdapter
+except Exception:
+    mongo_enabled = lambda: False
+    GiftCodesAdapter = None
 
 class GiftOperations(commands.Cog):
     def __init__(self, bot):
@@ -4295,6 +4300,8 @@ class GiftView(discord.ui.View):
     def __init__(self, cog):
         super().__init__(timeout=7200)
         self.cog = cog
+        # Ensure a logger is available on the view
+        self.logger = getattr(self.cog, 'logger', logging.getLogger('gift_ops.view'))
 
     @discord.ui.button(
         label="Add Gift Code",
@@ -4410,12 +4417,29 @@ class GiftView(discord.ui.View):
                         alliance_id = int(selected_value)
                         all_alliances = [alliance_id]
                     
-                    self.cog.cursor.execute("""
-                        SELECT giftcode, date FROM gift_codes
-                        WHERE validation_status != 'invalid'
-                        ORDER BY date DESC
-                    """)
-                    gift_codes = self.cog.cursor.fetchall()
+                    # Prefer Mongo when available to avoid SQLite table errors
+                    gift_codes = []
+                    if mongo_enabled() and GiftCodesAdapter is not None:
+                        try:
+                            docs = GiftCodesAdapter.get_all() or []
+                            # Filter out invalid, then sort by date desc (string dates like YYYY-MM-DD)
+                            filtered = [(code, (date or '')) for code, date, status in docs if status != 'invalid']
+                            gift_codes = sorted(filtered, key=lambda t: t[1], reverse=True)
+                        except Exception as e:
+                            self.logger.exception(f"Failed to load gift codes from Mongo: {e}")
+                            gift_codes = []
+                    else:
+                        try:
+                            self.cog.cursor.execute("""
+                                SELECT giftcode, date FROM gift_codes
+                                WHERE validation_status != 'invalid'
+                                ORDER BY date DESC
+                            """)
+                            gift_codes = self.cog.cursor.fetchall()
+                        except sqlite3.Error as e:
+                            # Gracefully handle missing table or other SQLite errors
+                            self.logger.exception(f"SQLite error loading gift codes: {e}")
+                            gift_codes = []
 
                     if not gift_codes:
                         await select_interaction.response.edit_message(
@@ -4521,12 +4545,12 @@ class GiftView(discord.ui.View):
                                         view=None
                                     )
 
-                                except Exception as e:
-                                    self.logger.exception(f"Error queueing gift code redemptions: {e}")
-                                    await button_interaction.response.send_message(
-                                        "❌ An error occurred while queueing the gift code redemptions.",
-                                        ephemeral=True
-                                    )
+                        except Exception as e:
+                            self.logger.exception(f"Error queueing gift code redemptions: {e}")
+                            await button_interaction.response.send_message(
+                                "❌ An error occurred while queueing the gift code redemptions.",
+                                ephemeral=True
+                            )
 
                             async def cancel_callback(button_interaction: discord.Interaction):
                                 cancel_embed = discord.Embed(
