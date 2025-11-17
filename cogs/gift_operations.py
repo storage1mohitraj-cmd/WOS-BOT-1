@@ -6,6 +6,10 @@ from urllib3.util.retry import Retry
 import hashlib
 import json
 from datetime import datetime
+try:
+    from db.mongo_adapters import mongo_enabled, GiftCodesAdapter
+except Exception:
+    mongo_enabled = lambda: False
 import sqlite3
 from discord.ext import tasks
 import asyncio
@@ -2242,19 +2246,23 @@ class GiftOperations(commands.Cog):
             await interaction.response.defer(ephemeral=True)
         except Exception:
             pass
-        self.cursor.execute("""
-            SELECT 
-                gc.giftcode,
-                gc.date,
-                COUNT(DISTINCT ugc.fid) as used_count
-            FROM gift_codes gc
-            LEFT JOIN user_giftcodes ugc ON gc.giftcode = ugc.giftcode
-            WHERE gc.validation_status = 'validated'
-            GROUP BY gc.giftcode
-            ORDER BY gc.date DESC
-        """)
-        
-        codes = self.cursor.fetchall()
+        if mongo_enabled():
+            mongo_codes = GiftCodesAdapter.get_all()
+            codes = [(code, date, 0) for code, date, status in mongo_codes if (status or '') == 'validated']
+        else:
+            self.cursor.execute("""
+                SELECT 
+                    gc.giftcode,
+                    gc.date,
+                    COUNT(DISTINCT ugc.fid) as used_count
+                FROM gift_codes gc
+                LEFT JOIN user_giftcodes ugc ON gc.giftcode = ugc.giftcode
+                WHERE gc.validation_status = 'validated'
+                GROUP BY gc.giftcode
+                ORDER BY gc.date DESC
+            """)
+            
+            codes = self.cursor.fetchall()
         
         if not codes:
             # Fallback: fetch active codes from website and queue auto redemption
@@ -2298,13 +2306,14 @@ class GiftOperations(commands.Cog):
                 # Upsert into DB as pending so it appears in future lists
                 try:
                     date_str = datetime.now().strftime("%Y-%m-%d")
+                    if mongo_enabled():
+                        GiftCodesAdapter.insert(code_str, date_str, 'pending')
                     self.cursor.execute(
                         "INSERT OR IGNORE INTO gift_codes (giftcode, date, validation_status) VALUES (?, ?, ?)",
                         (code_str, date_str, 'pending')
                     )
                     self.conn.commit()
                 except _sqlite.Error:
-                    # Non-fatal; continue
                     pass
 
                 # Queue for validation; auto-use will be triggered upon validation

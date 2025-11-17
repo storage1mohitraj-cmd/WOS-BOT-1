@@ -380,3 +380,121 @@ __all__ = [
     'GiftCodesAdapter',
     'AllianceMembersAdapter',
 ]
+
+class AdminsAdapter:
+    COLL = 'admins'
+
+    @staticmethod
+    def count() -> int:
+        try:
+            db = _get_db()
+            return db[AdminsAdapter.COLL].count_documents({})
+        except Exception:
+            return 0
+
+    @staticmethod
+    def get(user_id: int) -> Optional[Dict[str, Any]]:
+        try:
+            db = _get_db()
+            d = db[AdminsAdapter.COLL].find_one({'_id': str(user_id)})
+            return d
+        except Exception:
+            return None
+
+    @staticmethod
+    def upsert(user_id: int, is_initial: int) -> bool:
+        try:
+            db = _get_db()
+            now = datetime.utcnow().isoformat()
+            db[AdminsAdapter.COLL].update_one(
+                {'_id': str(user_id)},
+                {'$set': {'is_initial': int(is_initial), 'updated_at': now}, '$setOnInsert': {'created_at': now}},
+                upsert=True
+            )
+            return True
+        except Exception:
+            return False
+
+class AlliancesAdapter:
+    COLL = 'alliances'
+
+    @staticmethod
+    def get_all() -> list:
+        try:
+            db = _get_db()
+            docs = list(db[AlliancesAdapter.COLL].find({}))
+            return [{'alliance_id': int(d.get('alliance_id')), 'name': d.get('name'), 'discord_server_id': int(d.get('discord_server_id', 0))} for d in docs]
+        except Exception:
+            return []
+
+    @staticmethod
+    def find_by_name(name: str) -> Optional[Dict[str, Any]]:
+        try:
+            db = _get_db()
+            d = db[AlliancesAdapter.COLL].find_one({'name': name})
+            return d
+        except Exception:
+            return None
+
+    @staticmethod
+    def upsert(alliance_id: int, name: str, discord_server_id: int) -> bool:
+        try:
+            db = _get_db()
+            now = datetime.utcnow().isoformat()
+            db[AlliancesAdapter.COLL].update_one(
+                {'_id': str(alliance_id)},
+                {'$set': {'alliance_id': int(alliance_id), 'name': name, 'discord_server_id': int(discord_server_id), 'updated_at': now}, '$setOnInsert': {'created_at': now}},
+                upsert=True
+            )
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def delete(alliance_id: int) -> bool:
+        try:
+            db = _get_db()
+            res = db[AlliancesAdapter.COLL].delete_one({'_id': str(alliance_id)})
+            return res.deleted_count > 0
+        except Exception:
+            return False
+
+class AllianceSettingsAdapter:
+    COLL = 'alliance_settings'
+
+    @staticmethod
+    def get(alliance_id: int) -> Optional[Dict[str, Any]]:
+        try:
+            db = _get_db()
+            d = db[AllianceSettingsAdapter.COLL].find_one({'_id': str(alliance_id)})
+            return d
+        except Exception:
+            return None
+
+    @staticmethod
+    def upsert(alliance_id: int, channel_id: int, interval: int, giftcodecontrol: int | None = None, giftcode_channel: int | None = None) -> bool:
+        try:
+            db = _get_db()
+            now = datetime.utcnow().isoformat()
+            payload = {'channel_id': int(channel_id), 'interval': int(interval)}
+            if giftcodecontrol is not None:
+                payload['giftcodecontrol'] = int(giftcodecontrol)
+            if giftcode_channel is not None:
+                payload['giftcode_channel'] = int(giftcode_channel)
+            db[AllianceSettingsAdapter.COLL].update_one(
+                {'_id': str(alliance_id)},
+                {'$set': payload | {'updated_at': now}, '$setOnInsert': {'created_at': now}},
+                upsert=True
+            )
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def delete(alliance_id: int) -> bool:
+        try:
+            db = _get_db()
+            res = db[AllianceSettingsAdapter.COLL].delete_one({'_id': str(alliance_id)})
+            return res.deleted_count > 0
+        except Exception:
+            return False
