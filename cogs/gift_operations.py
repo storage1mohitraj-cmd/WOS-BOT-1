@@ -72,6 +72,22 @@ class GiftOperations(commands.Cog):
             self.conn = sqlite3.connect('db/giftcode.sqlite')
             self.cursor = self.conn.cursor()
 
+        # Ensure core gift_codes table exists before any alterations or queries
+        try:
+            self.cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS gift_codes (
+                    giftcode TEXT PRIMARY KEY,
+                    date TEXT,
+                    validation_status TEXT DEFAULT 'pending'
+                )
+                """
+            )
+            self.conn.commit()
+        except Exception as e:
+            # Log but continue; subsequent operations may still work if table already exists
+            self.logger.exception(f"Error ensuring gift_codes table: {e}")
+
         # API Setup
         self.api = GiftCodeAPI(bot)
 
@@ -2255,7 +2271,7 @@ class GiftOperations(commands.Cog):
                     self.logger.exception(f"Error fetching active gift codes from website: {e}")
 
             if not fetched_codes:
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     "No active gift codes found (database empty and website fetch returned none).",
                     ephemeral=True
                 )
@@ -4343,6 +4359,8 @@ class GiftView(discord.ui.View):
     def __init__(self, cog):
         super().__init__(timeout=7200)
         self.cog = cog
+        # Forward the cog's logger to this view to avoid AttributeError
+        self.logger = cog.logger
 
     @discord.ui.button(
         label="Add Gift Code",

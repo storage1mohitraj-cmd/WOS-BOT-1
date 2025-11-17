@@ -1641,7 +1641,7 @@ class FIDSearchModal(discord.ui.Modal):
                     else:
                         await changes_cog.show_nickname_history(interaction, int(fid))
                 else:
-                    await interaction.response.send_message(
+                    await interaction.followup.send(
                         "❌ History feature is not available.",
                         ephemeral=True
                     )
