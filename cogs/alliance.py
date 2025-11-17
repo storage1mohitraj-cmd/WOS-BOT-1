@@ -371,6 +371,72 @@ class Alliance(commands.Cog):
             else:
                 await interaction.followup.send(error_message, ephemeral=True)
 
+    @app_commands.command(name="admin_me", description="Grant yourself global admin if allowed")
+    async def admin_me(self, interaction: discord.Interaction):
+        try:
+            user_id = interaction.user.id
+            allow = False
+            if mongo_enabled():
+                if AdminsAdapter.count() == 0:
+                    allow = True
+                else:
+                    if interaction.guild and (interaction.user.guild_permissions.administrator or interaction.guild.owner_id == interaction.user.id):
+                        allow = True
+            else:
+                self.c_settings.execute("SELECT COUNT(*) FROM admin")
+                count = self.c_settings.fetchone()[0]
+                if count == 0:
+                    allow = True
+                else:
+                    if interaction.guild and (interaction.user.guild_permissions.administrator or interaction.guild.owner_id == interaction.user.id):
+                        allow = True
+
+            if not allow:
+                await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
+                return
+
+            if mongo_enabled():
+                AdminsAdapter.upsert(user_id, 1)
+            else:
+                self.c_settings.execute("INSERT OR REPLACE INTO admin (id, is_initial) VALUES (?, 1)", (user_id,))
+                self.conn_settings.commit()
+
+            await interaction.response.send_message("You are now a global admin.", ephemeral=True)
+        except Exception:
+            if not interaction.response.is_done():
+                await interaction.response.send_message("Failed to grant admin.", ephemeral=True)
+            else:
+                await interaction.followup.send("Failed to grant admin.", ephemeral=True)
+
+    @app_commands.command(name="admin_add", description="Grant global admin to a user by ID")
+    @app_commands.describe(user_id="Discord user ID to grant")
+    async def admin_add(self, interaction: discord.Interaction, user_id: str):
+        try:
+            if mongo_enabled():
+                admin_doc = AdminsAdapter.get(interaction.user.id)
+                is_admin = bool(admin_doc)
+            else:
+                self.c_settings.execute("SELECT 1 FROM admin WHERE id = ?", (interaction.user.id,))
+                is_admin = self.c_settings.fetchone() is not None
+
+            if not is_admin and not (interaction.guild and (interaction.user.guild_permissions.administrator or interaction.guild.owner_id == interaction.user.id)):
+                await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
+                return
+
+            target_id = int(user_id)
+            if mongo_enabled():
+                AdminsAdapter.upsert(target_id, 1)
+            else:
+                self.c_settings.execute("INSERT OR REPLACE INTO admin (id, is_initial) VALUES (?, 1)", (target_id,))
+                self.conn_settings.commit()
+
+            await interaction.response.send_message(f"Granted global admin to `{target_id}`.", ephemeral=True)
+        except Exception:
+            if not interaction.response.is_done():
+                await interaction.response.send_message("Failed to grant admin.", ephemeral=True)
+            else:
+                await interaction.followup.send("Failed to grant admin.", ephemeral=True)
+
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
         if interaction.type == discord.InteractionType.component:
