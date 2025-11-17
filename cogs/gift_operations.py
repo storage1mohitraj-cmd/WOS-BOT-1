@@ -4490,37 +4490,37 @@ class GiftView(discord.ui.View):
                             )
 
                             confirm_view = discord.ui.View()
-                            
+
                             async def confirm_callback(button_interaction: discord.Interaction):
                                 try:
                                     await self.cog.add_manual_redemption_to_queue(
                                         selected_code, all_alliances, button_interaction
                                     )
-                                    
+
                                     queue_status = await self.cog.get_queue_status()
-                                    
+
                                     alliance_names = []
                                     for aid in all_alliances[:3]:  # Show first 3 alliance names
                                         name = next((n for a_id, n, _ in alliances_with_counts if a_id == aid), 'Unknown')
                                         alliance_names.append(name)
-                                    
+
                                     alliance_list = ", ".join(alliance_names)
                                     if len(all_alliances) > 3:
                                         alliance_list += f" and {len(all_alliances) - 3} more"
-                                    
+
                                     queue_summary = []
                                     your_position = None
-                                    
+
                                     for code, items in queue_status['queue_by_code'].items():
                                         alliance_count = len([i for i in items if i.get('alliance_id')])
-                                        
+
                                         if code == selected_code and your_position is None:
                                             your_position = min(i['position'] for i in items)
-                                        
+
                                         queue_summary.append(f"• `{code}` - {alliance_count} alliance{'s' if alliance_count != 1 else ''}")
-                                    
+
                                     queue_info = "\n".join(queue_summary) if queue_summary else "Queue is empty"
-                                    
+
                                     queue_embed = discord.Embed(
                                         title="✅ Redemptions Queued Successfully",
                                         description=(
@@ -4539,18 +4539,17 @@ class GiftView(discord.ui.View):
                                         color=discord.Color.green()
                                     )
                                     queue_embed.set_footer(text="Gift codes are processed sequentially to prevent issues.")
-                                    
+
                                     await button_interaction.response.edit_message(
                                         embed=queue_embed,
                                         view=None
                                     )
-
-                        except Exception as e:
-                            self.logger.exception(f"Error queueing gift code redemptions: {e}")
-                            await button_interaction.response.send_message(
-                                "❌ An error occurred while queueing the gift code redemptions.",
-                                ephemeral=True
-                            )
+                                except Exception as e:
+                                    self.logger.exception(f"Error queueing gift code redemptions: {e}")
+                                    await button_interaction.response.send_message(
+                                        "❌ An error occurred while queueing the gift code redemptions.",
+                                        ephemeral=True
+                                    )
 
                             async def cancel_callback(button_interaction: discord.Interaction):
                                 cancel_embed = discord.Embed(
