@@ -432,21 +432,21 @@ class Alliance(commands.Cog):
                         emoji="➕",
                         style=discord.ButtonStyle.success, 
                         custom_id="add_alliance", 
-                        disabled=admin[1] != 1
+                        disabled=is_initial != 1
                     ))
                     view.add_item(discord.ui.Button(
                         label="Edit Alliance", 
                         emoji="✏️",
                         style=discord.ButtonStyle.primary, 
                         custom_id="edit_alliance", 
-                        disabled=admin[1] != 1
+                        disabled=is_initial != 1
                     ))
                     view.add_item(discord.ui.Button(
                         label="Delete Alliance", 
                         emoji="🗑️",
                         style=discord.ButtonStyle.danger, 
                         custom_id="delete_alliance", 
-                        disabled=admin[1] != 1
+                        disabled=is_initial != 1
                     ))
                     view.add_item(discord.ui.Button(
                         label="View Alliances", 
@@ -470,7 +470,7 @@ class Alliance(commands.Cog):
                     await interaction.response.edit_message(embed=embed, view=view)
 
                 elif custom_id == "edit_alliance":
-                    if admin[1] != 1:
+                    if is_initial != 1:
                         await interaction.response.send_message("You do not have permission to perform this action.", ephemeral=True)
                         return
                     await self.edit_alliance(interaction)
