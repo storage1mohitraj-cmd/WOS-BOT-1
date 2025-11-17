@@ -132,7 +132,10 @@ class Alliance(commands.Cog):
     async def view_alliances(self, interaction: discord.Interaction):
         
         if interaction.guild is None:
-            await interaction.response.send_message("❌ This command must be used in a server, not in DMs.", ephemeral=True)
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❌ This command must be used in a server, not in DMs.", ephemeral=True)
+            else:
+                await interaction.followup.send("❌ This command must be used in a server, not in DMs.", ephemeral=True)
             return
 
         user_id = interaction.user.id
@@ -143,7 +146,10 @@ class Alliance(commands.Cog):
             admin = self.c_settings.fetchone()
 
         if admin is None:
-            await interaction.response.send_message("You do not have permission to view alliances.", ephemeral=True)
+            if not interaction.response.is_done():
+                await interaction.response.send_message("You do not have permission to view alliances.", ephemeral=True)
+            else:
+                await interaction.followup.send("You do not have permission to view alliances.", ephemeral=True)
             return
 
         is_initial = admin[1] if isinstance(admin, tuple) else int(admin.get('is_initial', 0))
@@ -200,13 +206,23 @@ class Alliance(commands.Cog):
                 description=alliance_list,
                 color=discord.Color.blue()
             )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            try:
+                await interaction.response.defer(ephemeral=True)
+            except Exception:
+                pass
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
         except Exception as e:
-            await interaction.response.send_message(
-                "An error occurred while fetching alliances.", 
-                ephemeral=True
-            )
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "An error occurred while fetching alliances.", 
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(
+                    "An error occurred while fetching alliances.", 
+                    ephemeral=True
+                )
 
     async def alliance_autocomplete(self, interaction: discord.Interaction, current: str):
         self.c.execute("SELECT alliance_id, name FROM alliance_list")
