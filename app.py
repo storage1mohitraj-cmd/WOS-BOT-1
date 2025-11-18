@@ -2860,25 +2860,30 @@ async def ask(interaction: discord.Interaction, question: str):
                     return
 
                 # Determine target channel (optional for /ask command)
-                if channel_part and channel_part != "current":
-                    # Try to find the channel by name or mention
+                guild = interaction.guild
+                if channel_part and channel_part != "current" and guild is not None:
+                    # Try to find the channel by name or mention (guild-only)
                     target_channel = None
-                    for channel in interaction.guild.channels:
+                    for channel in guild.channels:
                         if channel.name == channel_part or f"<#{channel.id}>" == channel_part:
                             target_channel = channel
                             break
                     if not target_channel:
-                        target_channel = interaction.channel  # fallback
+                        target_channel = interaction.channel  # fallback to the current context
                 else:
-                    # Default to current channel if no channel specified or "current"
+                    # Default to current context (works in DMs and guilds)
                     target_channel = interaction.channel
 
                 # Determine mention type based on user's input, not AI decision
                 user_question_lower = question.lower()
-                if "remind everyone" in user_question_lower or "@everyone" in user_question_lower:
-                    mention_type = "everyone"
-                else:
+                if guild is None:
+                    # In DMs, @everyone is not applicable
                     mention_type = "user"
+                else:
+                    if "remind everyone" in user_question_lower or "@everyone" in user_question_lower:
+                        mention_type = "everyone"
+                    else:
+                        mention_type = "user"
 
                 # Create the reminder with determined mention type
                 reminder_id = await reminder_system.create_reminder(interaction, time_part, message_part, target_channel, mention=mention_type)
