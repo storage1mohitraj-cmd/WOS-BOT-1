@@ -6,8 +6,34 @@ import asyncio
 from datetime import datetime
 try:
     from db.mongo_adapters import mongo_enabled, AdminsAdapter, AlliancesAdapter, AllianceSettingsAdapter, AllianceMembersAdapter
-except Exception:
+except Exception as import_error:
+    # Fallback: If MongoDB adapters fail to import, use SQLite exclusively
+    print(f"[WARNING] MongoDB adapters import failed: {import_error}. Using SQLite fallback.")
     mongo_enabled = lambda: False
+    
+    # Provide dummy adapter classes that always return None/False
+    class AdminsAdapter:
+        @staticmethod
+        def get(user_id): return None
+        @staticmethod
+        def upsert(user_id, is_initial): return False
+        @staticmethod
+        def count(): return 0
+    
+    class AlliancesAdapter:
+        @staticmethod
+        def get_all(): return []
+        @staticmethod
+        def get(alliance_id): return None
+    
+    class AllianceSettingsAdapter:
+        @staticmethod
+        def get(alliance_id): return None
+    
+    class AllianceMembersAdapter:
+        @staticmethod
+        def get_all_members(): return []
+
 
 # Import database utilities for consistent path handling
 try:
@@ -142,6 +168,70 @@ class Alliance(commands.Cog):
             self.c.execute("ALTER TABLE alliance_list ADD COLUMN discord_server_id INTEGER")
             self.conn.commit()
 
+    def _get_admin(self, user_id):
+        """Get admin info with MongoDB fallback to SQLite"""
+        try:
+            if mongo_enabled():
+                admin = AdminsAdapter.get(user_id)
+                if admin is not None:
+                    return admin
+                # If MongoDB returns None, fall back to SQLite
+        except Exception as e:
+            print(f"[WARNING] MongoDB AdminsAdapter.get failed: {e}. Falling back to SQLite.")
+        
+        # SQLite fallback
+        try:
+            self.c_settings.execute("SELECT id, is_initial FROM admin WHERE id = ?", (user_id,))
+            return self.c_settings.fetchone()
+        except Exception as e:
+            print(f"[ERROR] SQLite admin query failed: {e}")
+            return None
+
+    def _upsert_admin(self, user_id, is_initial=1):
+        """Insert/update admin with MongoDB fallback to SQLite"""
+        success = False
+        try:
+            if mongo_enabled():
+                success = AdminsAdapter.upsert(user_id, is_initial)
+                if success:
+                    return True
+                # If MongoDB fails, fall back to SQLite
+                print(f"[WARNING] MongoDB AdminsAdapter.upsert returned False. Falling back to SQLite.")
+        except Exception as e:
+            print(f"[WARNING] MongoDB AdminsAdapter.upsert failed: {e}. Falling back to SQLite.")
+        
+        # SQLite fallback
+        try:
+            self.c_settings.execute(
+                "INSERT OR REPLACE INTO admin (id, is_initial) VALUES (?, ?)",
+                (user_id, is_initial)
+            )
+            self.conn_settings.commit()
+            return True
+        except Exception as e:
+            print(f"[ERROR] SQLite admin upsert failed: {e}")
+            return False
+
+    def _count_admins(self):
+        """Count admins with MongoDB fallback to SQLite"""
+        try:
+            if mongo_enabled():
+                count = AdminsAdapter.count()
+                if count is not None and count >= 0:
+                    return count
+                # If MongoDB returns None, fall back to SQLite
+        except Exception as e:
+            print(f"[WARNING] MongoDB AdminsAdapter.count failed: {e}. Falling back to SQLite.")
+        
+        # SQLite fallback
+        try:
+            self.c_settings.execute("SELECT COUNT(*) FROM admin")
+            return self.c_settings.fetchone()[0]
+        except Exception as e:
+            print(f"[ERROR] SQLite admin count failed: {e}")
+            return 0
+
+
     async def view_alliances(self, interaction: discord.Interaction):
         
         if interaction.guild is None:
@@ -258,23 +348,13 @@ class Alliance(commands.Cog):
                     )
                     return
                 
-            if mongo_enabled():
-                admin_count = AdminsAdapter.count()
-            else:
-                self.c_settings.execute("SELECT COUNT(*) FROM admin")
-                admin_count = self.c_settings.fetchone()[0]
-
+            # Use helper method with automatic fallback
+            admin_count = self._count_admins()
             user_id = interaction.user.id
 
             if admin_count == 0:
-                if mongo_enabled():
-                    AdminsAdapter.upsert(user_id, 1)
-                else:
-                    self.c_settings.execute("""
-                        INSERT INTO admin (id, is_initial) 
-                        VALUES (?, 1)
-                    """, (user_id,))
-                    self.conn_settings.commit()
+                # First time setup - make this user the global admin
+                self._upsert_admin(user_id, 1)
 
                 first_use_embed = discord.Embed(
                     title="🎉 First Time Setup",
@@ -289,22 +369,15 @@ class Alliance(commands.Cog):
                 
                 await asyncio.sleep(3)
                 
-            if mongo_enabled():
-                admin = AdminsAdapter.get(user_id)
-            else:
-                self.c_settings.execute("SELECT id, is_initial FROM admin WHERE id = ?", (user_id,))
-                admin = self.c_settings.fetchone()
+            # Use helper method with automatic fallback
+            admin = self._get_admin(user_id)
 
             if admin is None:
+                # User is not in database - check if they have Discord admin permissions
                 if interaction.guild and (interaction.user.guild_permissions.administrator or interaction.guild.owner_id == interaction.user.id):
-                    if mongo_enabled():
-                        AdminsAdapter.upsert(user_id, 1)
-                        admin = AdminsAdapter.get(user_id)
-                    else:
-                        self.c_settings.execute("INSERT INTO admin (id, is_initial) VALUES (?, 1)", (user_id,))
-                        self.conn_settings.commit()
-                        self.c_settings.execute("SELECT id, is_initial FROM admin WHERE id = ?", (user_id,))
-                        admin = self.c_settings.fetchone()
+                    # Grant admin rights automatically
+                    self._upsert_admin(user_id, 1)
+                    admin = self._get_admin(user_id)
                 else:
                     await interaction.response.send_message(
                         "You do not have permission to access this menu.", 
@@ -409,36 +482,21 @@ class Alliance(commands.Cog):
         if interaction.type == discord.InteractionType.component:
             custom_id = interaction.data.get("custom_id")
             user_id = interaction.user.id
-            # Retrieve admin info
-            if mongo_enabled():
-                admin_doc = AdminsAdapter.get(user_id)
-                is_admin = bool(admin_doc)
-                is_initial = int(admin_doc.get('is_initial', 0)) if admin_doc else 0
-            else:
-                self.c_settings.execute("SELECT id, is_initial FROM admin WHERE id = ?", (user_id,))
-                admin_row = self.c_settings.fetchone()
-                is_admin = admin_row is not None
-                is_initial = admin_row[1] if admin_row else 0
+            
+            # Use helper method with automatic fallback
+            admin = self._get_admin(user_id)
+            is_admin = admin is not None
+            is_initial = int(admin[1]) if (admin and isinstance(admin, tuple)) else (int(admin.get('is_initial', 0)) if admin else 0)
 
             # If user is not recognized as admin, attempt to grant if they have Discord admin rights
             if not is_admin:
                 if interaction.guild and (interaction.user.guild_permissions.administrator or interaction.guild.owner_id == interaction.user.id):
-                    # Grant admin rights in the DB
-                    if mongo_enabled():
-                        AdminsAdapter.upsert(user_id, 1)
-                        is_initial = 1
-                    else:
-                        self.c_settings.execute("INSERT INTO admin (id, is_initial) VALUES (?, 1)", (user_id,))
-                        self.conn_settings.commit()
-                        is_initial = 1
+                    # Grant admin rights in the DB using helper method
+                    self._upsert_admin(user_id, 1)
+                    is_initial = 1
                     # Refresh admin status after insertion
-                    if mongo_enabled():
-                        admin_doc = AdminsAdapter.get(user_id)
-                        is_admin = bool(admin_doc)
-                    else:
-                        self.c_settings.execute("SELECT id, is_initial FROM admin WHERE id = ?", (user_id,))
-                        admin_row = self.c_settings.fetchone()
-                        is_admin = admin_row is not None
+                    admin = self._get_admin(user_id)
+                    is_admin = admin is not None
                 else:
                     await interaction.response.send_message("You do not have permission to perform this action.", ephemeral=True)
                     return
