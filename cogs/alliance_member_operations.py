@@ -319,11 +319,12 @@ class AllianceMemberOperations(commands.Cog):
                 row=0
             )
             async def add_member_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
+                await button_interaction.response.defer(ephemeral=True)
                 try:
                     admin_info = get_admin(button_interaction.user.id)
                     
                     if not admin_info:
-                        await button_interaction.response.send_message(
+                        await button_interaction.followup.send(
                             "❌ You don't have permission to use this command.", 
                             ephemeral=True
                         )
@@ -341,7 +342,7 @@ class AllianceMemberOperations(commands.Cog):
                     )
                     
                     if not alliances:
-                        await button_interaction.response.send_message(
+                        await button_interaction.followup.send(
                             "❌ No alliances found for your permissions.", 
                             ephemeral=True
                         )
@@ -385,7 +386,7 @@ class AllianceMemberOperations(commands.Cog):
                         await interaction.response.send_modal(AddMemberModal(alliance_id))
 
                     view.callback = select_callback
-                    await button_interaction.response.send_message(
+                    await button_interaction.followup.send(
                         embed=select_embed,
                         view=view,
                         ephemeral=True
@@ -393,7 +394,7 @@ class AllianceMemberOperations(commands.Cog):
 
                 except Exception as e:
                     self.cog.log_message(f"Error in add_member_button: {e}")
-                    await button_interaction.response.send_message(
+                    await button_interaction.followup.send(
                         "An error occurred while processing your request.", 
                         ephemeral=True
                     )
@@ -406,11 +407,12 @@ class AllianceMemberOperations(commands.Cog):
                 row=0
             )
             async def remove_member_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
+                await button_interaction.response.defer(ephemeral=True)
                 try:
                     admin_info = get_admin(button_interaction.user.id)
                     
                     if not admin_info:
-                        await button_interaction.response.send_message(
+                        await button_interaction.followup.send(
                             "❌ You are not authorized to use this command.", 
                             ephemeral=True
                         )
@@ -428,7 +430,7 @@ class AllianceMemberOperations(commands.Cog):
                     )
                     
                     if not alliances:
-                        await button_interaction.response.send_message(
+                        await button_interaction.followup.send(
                             "❌ Your authorized alliance was not found.", 
                             ephemeral=True
                         )
@@ -603,7 +605,7 @@ class AllianceMemberOperations(commands.Cog):
                         )
 
                     view.callback = select_callback
-                    await button_interaction.response.send_message(
+                    await button_interaction.followup.send(
                         embed=select_embed,
                         view=view,
                         ephemeral=True
@@ -611,7 +613,7 @@ class AllianceMemberOperations(commands.Cog):
 
                 except Exception as e:
                     self.cog.log_message(f"Error in remove_member_button: {e}")
-                    await button_interaction.response.send_message(
+                    await button_interaction.followup.send(
                         "❌ An error occurred during the member deletion process.",
                         ephemeral=True
                     )
@@ -624,11 +626,12 @@ class AllianceMemberOperations(commands.Cog):
                 row=0
             )
             async def view_members_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
+                await button_interaction.response.defer(ephemeral=True)
                 try:
                     admin_info = get_admin(button_interaction.user.id)
                     
                     if not admin_info:
-                        await button_interaction.response.send_message(
+                        await button_interaction.followup.send(
                             "❌ You do not have permission to use this command.", 
                             ephemeral=True
                         )
@@ -646,7 +649,7 @@ class AllianceMemberOperations(commands.Cog):
                     )
                     
                     if not alliances:
-                        await button_interaction.response.send_message(
+                        await button_interaction.followup.send(
                             "❌ No alliance found that you have permission for.", 
                             ephemeral=True
                         )
@@ -761,7 +764,7 @@ class AllianceMemberOperations(commands.Cog):
                             pagination_view.message = message
 
                     view.callback = select_callback
-                    await button_interaction.response.send_message(
+                    await button_interaction.followup.send(
                         embed=select_embed,
                         view=view,
                         ephemeral=True
@@ -769,11 +772,10 @@ class AllianceMemberOperations(commands.Cog):
 
                 except Exception as e:
                     self.cog.log_message(f"Error in view_members_button: {e}")
-                    if not button_interaction.response.is_done():
-                        await button_interaction.response.send_message(
-                            "❌ An error occurred while displaying the member list.",
-                            ephemeral=True
-                        )
+                    await button_interaction.followup.send(
+                        "❌ An error occurred while displaying the member list.",
+                        ephemeral=True
+                    )
 
             @discord.ui.button(
                 label="Main Menu", 
@@ -786,11 +788,12 @@ class AllianceMemberOperations(commands.Cog):
 
             @discord.ui.button(label="Transfer Member", emoji="🔄", style=discord.ButtonStyle.primary)
             async def transfer_member_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
+                await button_interaction.response.defer(ephemeral=True)
                 try:
                     admin_info = get_admin(button_interaction.user.id)
                     
                     if not admin_info:
-                        await button_interaction.response.send_message(
+                        await button_interaction.followup.send(
                             "❌ You do not have permission to use this command.", 
                             ephemeral=True
                         )
@@ -808,7 +811,7 @@ class AllianceMemberOperations(commands.Cog):
                     )
                     
                     if not alliances:
-                        await button_interaction.response.send_message(
+                        await button_interaction.followup.send(
                             "❌ No alliance found with your permissions.", 
                             ephemeral=True
                         )
@@ -988,7 +991,7 @@ class AllianceMemberOperations(commands.Cog):
                             )
 
                     view.callback = source_callback
-                    await button_interaction.response.send_message(
+                    await button_interaction.followup.send(
                         embed=select_embed,
                         view=view,
                         ephemeral=True
@@ -996,7 +999,7 @@ class AllianceMemberOperations(commands.Cog):
 
                 except Exception as e:
                     self.cog.log_message(f"Error in transfer_member_button: {e}")
-                    await button_interaction.response.send_message(
+                    await button_interaction.followup.send(
                         "❌ An error occurred during the transfer operation.",
                         ephemeral=True
                     )
@@ -1660,7 +1663,7 @@ class FIDSearchModal(discord.ui.Modal):
                 return
             
             # Original transfer logic
-            with sqlite3.connect('db/users.sqlite') as users_db:
+            with get_db_connection('users.sqlite') as users_db:
                 cursor = users_db.cursor()
                 cursor.execute("""
                     SELECT fid, nickname, furnace_lv, alliance
@@ -1678,7 +1681,7 @@ class FIDSearchModal(discord.ui.Modal):
 
                 fid, nickname, furnace_lv, current_alliance_id = user_result
  
-                with sqlite3.connect('db/alliance.sqlite') as alliance_db:
+                with get_db_connection('alliance.sqlite') as alliance_db:
                     cursor = alliance_db.cursor()
                     cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (current_alliance_id,))
                     current_alliance_name = cursor.fetchone()[0]
@@ -1717,7 +1720,7 @@ class FIDSearchModal(discord.ui.Modal):
                     target_alliance_id = int(select.values[0])
                     
                     try:
-                        with sqlite3.connect('db/alliance.sqlite') as alliance_db:
+                        with get_db_connection('alliance.sqlite') as alliance_db:
                             cursor = alliance_db.cursor()
                             cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (target_alliance_id,))
                             target_alliance_name = cursor.fetchone()[0]
