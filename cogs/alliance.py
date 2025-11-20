@@ -9,19 +9,32 @@ try:
 except Exception:
     mongo_enabled = lambda: False
 
+# Import database utilities for consistent path handling
+try:
+    from db_utils import get_db_connection
+except ImportError:
+    # Fallback if db_utils is not available
+    from pathlib import Path
+    def get_db_connection(db_name: str, **kwargs):
+        repo_root = Path(__file__).resolve().parents[1]
+        db_dir = repo_root / "db"
+        db_dir.mkdir(parents=True, exist_ok=True)
+        return sqlite3.connect(str(db_dir / db_name), **kwargs)
+
 class Alliance(commands.Cog):
     def __init__(self, bot, conn):
         self.bot = bot
         self.conn = conn
         self.c = self.conn.cursor()
         
-        self.conn_users = sqlite3.connect('db/users.sqlite')
+        # Use centralized database connection utility for consistent paths
+        self.conn_users = get_db_connection('users.sqlite')
         self.c_users = self.conn_users.cursor()
         
-        self.conn_settings = sqlite3.connect('db/settings.sqlite')
+        self.conn_settings = get_db_connection('settings.sqlite')
         self.c_settings = self.conn_settings.cursor()
         
-        self.conn_giftcode = sqlite3.connect('db/giftcode.sqlite')
+        self.conn_giftcode = get_db_connection('giftcode.sqlite')
         self.c_giftcode = self.conn_giftcode.cursor()
 
         self._create_table()
