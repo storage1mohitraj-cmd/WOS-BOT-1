@@ -459,6 +459,193 @@ class PlayerInfoCog(commands.Cog):
             await interaction.followup.send(f"Unexpected error: {e}", ephemeral=True)
             return
 
+    @discord.app_commands.command(
+        name="editplayerinfo",
+        description="Update an existing playerinfo message with new player data.",
+    )
+    @app_commands.describe(
+        message_id="The ID of the message to edit (must be in the current channel)",
+        player_id="The new 9-digit player ID to fetch info for"
+    )
+    async def editplayerinfo(self, interaction: discord.Interaction, message_id: str, player_id: str):
+        """Edit an existing message with new player info."""
+        user_id = getattr(interaction.user, 'id', 'unknown')
+        self.logger.info("/editplayerinfo invoked by user %s for msg=%s player_id=%s", user_id, message_id, player_id)
+
+        # Validate player_id
+        if not re.fullmatch(r"\d{9}", player_id):
+            await interaction.response.send_message("Invalid player ID. Must be 9 digits.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        # Fetch message
+        try:
+            m_id = int(message_id)
+            msg = await interaction.channel.fetch_message(m_id)
+        except discord.NotFound:
+            await interaction.followup.send("Message not found in this channel.", ephemeral=True)
+            return
+        except (ValueError, discord.HTTPException) as e:
+            await interaction.followup.send(f"Error fetching message: {e}", ephemeral=True)
+            return
+
+        if msg.author.id != self.bot.user.id:
+            await interaction.followup.send("I can only edit my own messages.", ephemeral=True)
+            return
+
+        # Fetch data
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Origin": "https://wos-giftcode-api.centurygame.com",
+        }
+
+        js = None
+        try:
+            current_time = int(time.time() * 1000)
+            form = f"fid={player_id}&time={current_time}"
+            sign = hashlib.md5((form + SECRET).encode("utf-8")).hexdigest()
+            payload = f"sign={sign}&{form}"
+            
+            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl_context)) as session:
+                async with session.post(API_URL, data=payload, headers=headers, timeout=20) as resp:
+                    text = await resp.text()
+                    try:
+                        js = await resp.json()
+                    except Exception:
+                        self.logger.warning("Invalid JSON response for fid=%s: %s", player_id, text)
+        except Exception as e:
+            self.logger.exception("Request error for fid=%s", player_id)
+            await interaction.followup.send(f"Network error fetching player info: {e}", ephemeral=True)
+            return
+
+        # Helper for URL validation
+        def _is_valid_url(u: str) -> bool:
+            if not u:
+                return False
+            try:
+                p = urllib.parse.urlparse(u)
+                return p.scheme in ("http", "https") and bool(p.netloc)
+            except Exception:
+                return False
+
+        # Build embed
+        embed = discord.Embed(colour=discord.Colour.blurple())
+        
+        if js is None:
+            embed.description = "No valid response from API."
+            embed.set_footer(text="Requested via /editplayerinfo . Magnus[ICE]")
+        elif js.get("code") != 0:
+            api_msg_raw = js.get('msg') or ''
+            api_msg = str(api_msg_raw).lower().replace('_', ' ')
+            if ('role' in api_msg and ('not' in api_msg and ('exist' in api_msg or 'found' in api_msg))) \
+               or (('not' in api_msg) and ('exist' in api_msg or 'found' in api_msg)):
+                embed.description = "Player not found — check the 9-digit player ID and try again."
+            else:
+                embed.description = f"API error: {api_msg_raw}"
+            embed.set_footer(text="Requested via /editplayerinfo . Magnus[ICE]")
+        else:
+            # Success
+            data = js.get('data', {})
+            nickname = data.get('nickname', 'Unknown')
+            kid = data.get('kid', 'N/A')
+            stove_lv = data.get('stove_lv')
+            stove_icon = data.get('stove_lv_content')
+            avatar = data.get('avatar_image')
+
+            # compute furnace label
+            try:
+                lv_int = int(stove_lv) if stove_lv is not None else None
+            except Exception:
+                lv_int = None
+            fc = map_furnace(lv_int)
+
+            # Set author
+            try:
+                author_name = f"{nickname}"
+                if stove_icon and _is_valid_url(stove_icon):
+                    embed.set_author(name=author_name, icon_url=stove_icon)
+                else:
+                    embed.set_author(name=author_name)
+            except Exception:
+                embed.set_author(name=author_name)
+
+            # Thumbnail
+            if avatar and _is_valid_url(avatar):
+                try:
+                    embed.set_thumbnail(url=avatar)
+                except Exception:
+                    pass
+
+            # Furnace display
+            if lv_int is None:
+                furnace_display = f"```{stove_lv or 'N/A'}```"
+            else:
+                if fc:
+                    furnace_display = f"```{fc}```"
+                else:
+                    furnace_display = f"```{lv_int}```"
+
+            pid_display = f"```{player_id}```"
+            raw_state = str(kid or "N/A")
+            if raw_state.startswith("#"):
+                state_val = f"```{raw_state}```"
+            else:
+                state_val = f"```#{raw_state}```"
+
+            embed.add_field(name="🪪 Player ID", value=pid_display, inline=True)
+            embed.add_field(name="🏠 STATE", value=state_val, inline=True)
+            embed.add_field(name="Furnace Level", value=furnace_display, inline=True)
+
+            # Alliance lookup
+            try:
+                alliance_name = None
+                with sqlite3.connect('db/users.sqlite') as users_db:
+                    cur = users_db.cursor()
+                    cur.execute('SELECT alliance FROM users WHERE fid = ?', (player_id,))
+                    row = cur.fetchone()
+                    if row and row[0] is not None:
+                        alliance_val = str(row[0])
+                        if alliance_val.isdigit():
+                            try:
+                                with sqlite3.connect('db/alliance.sqlite') as a_db:
+                                    ac = a_db.cursor()
+                                    ac.execute('SELECT name FROM alliance_list WHERE alliance_id = ?', (int(alliance_val),))
+                                    arow = ac.fetchone()
+                                    if arow:
+                                        alliance_name = arow[0]
+                                    else:
+                                        alliance_name = alliance_val
+                            except Exception:
+                                alliance_name = alliance_val
+                        else:
+                            alliance_name = alliance_val
+
+                if alliance_name:
+                    embed.add_field(name="🏰 Alliance", value=f"```{alliance_name}```", inline=True)
+            except Exception:
+                pass
+
+            # Footer
+            try:
+                if WATERMARK_URL and _is_valid_url(WATERMARK_URL):
+                    embed.set_footer(text="Requested via /editplayerinfo . Magnus[ICE]", icon_url=WATERMARK_URL)
+                else:
+                    embed.set_footer(text="Requested via /editplayerinfo . Magnus[ICE]")
+            except Exception:
+                embed.set_footer(text="Requested via /editplayerinfo . Magnus[ICE]")
+
+        # Update message
+        try:
+            await msg.edit(embed=embed)
+            await interaction.followup.send(f"Updated message {message_id}.", ephemeral=True)
+        except Exception as e:
+            self.logger.error("Failed to edit message %s: %s", message_id, e)
+            await interaction.followup.send(f"Failed to edit message: {e}", ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     """Add the cog to the bot.
