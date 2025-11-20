@@ -10,6 +10,23 @@ from datetime import datetime
 import os
 from .login_handler import LoginHandler
 
+# Import shared utilities
+try:
+    from db_utils import get_db_connection
+    from admin_utils import is_admin, is_global_admin, get_admin
+except ImportError:
+    # Fallback if utilities are not available
+    from pathlib import Path
+    def get_db_connection(db_name: str, **kwargs):
+        repo_root = Path(__file__).resolve().parents[1]
+        db_dir = repo_root / "db"
+        db_dir.mkdir(parents=True, exist_ok=True)
+        return sqlite3.connect(str(db_dir / db_name), **kwargs)
+    
+    def is_global_admin(user_id): return False
+    def is_admin(user_id): return False
+    def get_admin(user_id): return None
+
 class PaginationView(discord.ui.View):
     def __init__(self, chunks: List[discord.Embed], author_id: int):
         super().__init__(timeout=7200)
@@ -83,10 +100,10 @@ def fix_rtl(text):
 class AllianceMemberOperations(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.conn_alliance = sqlite3.connect('db/alliance.sqlite')
+        self.conn_alliance = get_db_connection('alliance.sqlite')
         self.c_alliance = self.conn_alliance.cursor()
         
-        self.conn_users = sqlite3.connect('db/users.sqlite')
+        self.conn_users = get_db_connection('users.sqlite')
         self.c_users = self.conn_users.cursor()
         
         self.level_mapping = {
@@ -148,7 +165,7 @@ class AllianceMemberOperations(commands.Cog):
 
         # Fallback to SQLite
         try:
-            with sqlite3.connect('db/users.sqlite') as users_db:
+            with get_db_connection('users.sqlite') as users_db:
                 cursor = users_db.cursor()
                 cursor.execute("SELECT COUNT(*) FROM users WHERE alliance = ?", (alliance_id,))
                 return int(cursor.fetchone()[0])
@@ -179,7 +196,7 @@ class AllianceMemberOperations(commands.Cog):
 
         # SQLite fallback
         try:
-            with sqlite3.connect('db/users.sqlite') as users_db:
+            with get_db_connection('users.sqlite') as users_db:
                 cursor = users_db.cursor()
                 cursor.execute("SELECT fid, nickname, furnace_lv FROM users WHERE alliance = ? ORDER BY furnace_lv DESC, nickname", (alliance_id,))
                 return cursor.fetchall()
@@ -196,7 +213,7 @@ class AllianceMemberOperations(commands.Cog):
             pass
 
         try:
-            with sqlite3.connect('db/users.sqlite') as users_db:
+            with get_db_connection('users.sqlite') as users_db:
                 cursor = users_db.cursor()
                 cursor.execute("SELECT nickname FROM users WHERE fid = ?", (fid,))
                 r = cursor.fetchone()
@@ -212,7 +229,7 @@ class AllianceMemberOperations(commands.Cog):
             pass
 
         try:
-            with sqlite3.connect('db/users.sqlite') as users_db:
+            with get_db_connection('users.sqlite') as users_db:
                 cursor = users_db.cursor()
                 cursor.execute("DELETE FROM users WHERE fid = ?", (fid,))
                 users_db.commit()
@@ -242,7 +259,7 @@ class AllianceMemberOperations(commands.Cog):
 
         # SQLite fallback
         try:
-            with sqlite3.connect('db/users.sqlite') as users_db:
+            with get_db_connection('users.sqlite') as users_db:
                 cursor = users_db.cursor()
                 cursor.execute("SELECT fid, nickname FROM users WHERE alliance = ?", (alliance_id,))
                 removed = cursor.fetchall()
@@ -263,7 +280,7 @@ class AllianceMemberOperations(commands.Cog):
             pass
 
         try:
-            with sqlite3.connect('db/users.sqlite') as users_db:
+            with get_db_connection('users.sqlite') as users_db:
                 cursor = users_db.cursor()
                 cursor.execute("UPDATE users SET alliance = ? WHERE fid = ?", (new_alliance, fid))
                 users_db.commit()
@@ -303,24 +320,20 @@ class AllianceMemberOperations(commands.Cog):
             )
             async def add_member_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
                 try:
-                    is_admin = False
-                    is_initial = 0
+                    admin_info = get_admin(button_interaction.user.id)
                     
-                    with sqlite3.connect('db/settings.sqlite') as settings_db:
-                        cursor = settings_db.cursor()
-                        cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (button_interaction.user.id,))
-                        result = cursor.fetchone()
-                        
-                        if result:
-                            is_admin = True
-                            is_initial = result[0] if result[0] is not None else 0
-                        
-                    if not is_admin:
+                    if not admin_info:
                         await button_interaction.response.send_message(
                             "❌ You don't have permission to use this command.", 
                             ephemeral=True
                         )
                         return
+
+                    is_initial = 0
+                    if isinstance(admin_info, tuple):
+                        is_initial = int(admin_info[1])
+                    elif isinstance(admin_info, dict):
+                        is_initial = int(admin_info.get('is_initial', 0))
 
                     alliances, special_alliances, is_global = await self.cog.get_admin_alliances(
                         button_interaction.user.id, 
@@ -379,7 +392,7 @@ class AllianceMemberOperations(commands.Cog):
                     )
 
                 except Exception as e:
-                    self.log_message(f"Error in add_member_button: {e}")
+                    self.cog.log_message(f"Error in add_member_button: {e}")
                     await button_interaction.response.send_message(
                         "An error occurred while processing your request.", 
                         ephemeral=True
@@ -394,19 +407,20 @@ class AllianceMemberOperations(commands.Cog):
             )
             async def remove_member_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
                 try:
-                    with sqlite3.connect('db/settings.sqlite') as settings_db:
-                        cursor = settings_db.cursor()
-                        cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (button_interaction.user.id,))
-                        admin_result = cursor.fetchone()
+                    admin_info = get_admin(button_interaction.user.id)
+                    
+                    if not admin_info:
+                        await button_interaction.response.send_message(
+                            "❌ You are not authorized to use this command.", 
+                            ephemeral=True
+                        )
+                        return
                         
-                        if not admin_result:
-                            await button_interaction.response.send_message(
-                                "❌ You are not authorized to use this command.", 
-                                ephemeral=True
-                            )
-                            return
-                            
-                        is_initial = admin_result[0]
+                    is_initial = 0
+                    if isinstance(admin_info, tuple):
+                        is_initial = int(admin_info[1])
+                    elif isinstance(admin_info, dict):
+                        is_initial = int(admin_info.get('is_initial', 0))
 
                     alliances, special_alliances, is_global = await self.cog.get_admin_alliances(
                         button_interaction.user.id, 
@@ -456,10 +470,13 @@ class AllianceMemberOperations(commands.Cog):
                     async def select_callback(interaction: discord.Interaction):
                         alliance_id = int(view.current_select.values[0])
                         
-                        with sqlite3.connect('db/alliance.sqlite') as alliance_db:
-                            cursor = alliance_db.cursor()
-                            cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (alliance_id,))
-                            alliance_name = cursor.fetchone()[0]
+                        try:
+                            with get_db_connection('alliance.sqlite') as alliance_db:
+                                cursor = alliance_db.cursor()
+                                cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (alliance_id,))
+                                alliance_name = cursor.fetchone()[0]
+                        except Exception:
+                            alliance_name = "Unknown Alliance"
 
                         members = self.cog._get_members_by_alliance(alliance_id)
                             
@@ -521,7 +538,7 @@ class AllianceMemberOperations(commands.Cog):
                                         removed_members = self.cog._delete_members_by_alliance(alliance_id)
                                         
                                         try:
-                                            with sqlite3.connect('db/settings.sqlite') as settings_db:
+                                            with get_db_connection('settings.sqlite') as settings_db:
                                                 cursor = settings_db.cursor()
                                                 cursor.execute("""
                                                     SELECT channel_id 
@@ -553,9 +570,9 @@ class AllianceMemberOperations(commands.Cog):
                                                         if alliance_log_channel:
                                                             await alliance_log_channel.send(embed=log_embed)
                                                     except Exception as e:
-                                                        self.log_message(f"Alliance Log Sending Error: {e}")
+                                                        self.cog.log_message(f"Alliance Log Sending Error: {e}")
                                         except Exception as e:
-                                            self.log_message(f"Log record error: {e}")
+                                            self.cog.log_message(f"Log record error: {e}")
                                         
                                         success_embed = discord.Embed(
                                             title="✅ Members Deleted",
@@ -593,7 +610,7 @@ class AllianceMemberOperations(commands.Cog):
                     )
 
                 except Exception as e:
-                    self.log_message(f"Error in remove_member_button: {e}")
+                    self.cog.log_message(f"Error in remove_member_button: {e}")
                     await button_interaction.response.send_message(
                         "❌ An error occurred during the member deletion process.",
                         ephemeral=True
@@ -608,19 +625,20 @@ class AllianceMemberOperations(commands.Cog):
             )
             async def view_members_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
                 try:
-                    with sqlite3.connect('db/settings.sqlite') as settings_db:
-                        cursor = settings_db.cursor()
-                        cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (button_interaction.user.id,))
-                        admin_result = cursor.fetchone()
+                    admin_info = get_admin(button_interaction.user.id)
+                    
+                    if not admin_info:
+                        await button_interaction.response.send_message(
+                            "❌ You do not have permission to use this command.", 
+                            ephemeral=True
+                        )
+                        return
                         
-                        if not admin_result:
-                            await button_interaction.response.send_message(
-                                "❌ You do not have permission to use this command.", 
-                                ephemeral=True
-                            )
-                            return
-                            
-                        is_initial = admin_result[0]
+                    is_initial = 0
+                    if isinstance(admin_info, tuple):
+                        is_initial = int(admin_info[1])
+                    elif isinstance(admin_info, dict):
+                        is_initial = int(admin_info.get('is_initial', 0))
 
                     alliances, special_alliances, is_global = await self.cog.get_admin_alliances(
                         button_interaction.user.id, 
@@ -670,20 +688,15 @@ class AllianceMemberOperations(commands.Cog):
                     async def select_callback(interaction: discord.Interaction):
                         alliance_id = int(view.current_select.values[0])
                         
-                        with sqlite3.connect('db/alliance.sqlite') as alliance_db:
-                            cursor = alliance_db.cursor()
-                            cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (alliance_id,))
-                            alliance_name = cursor.fetchone()[0]
+                        try:
+                            with get_db_connection('alliance.sqlite') as alliance_db:
+                                cursor = alliance_db.cursor()
+                                cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (alliance_id,))
+                                alliance_name = cursor.fetchone()[0]
+                        except Exception:
+                            alliance_name = "Unknown Alliance"
                         
-                        with sqlite3.connect('db/users.sqlite') as users_db:
-                            cursor = users_db.cursor()
-                            cursor.execute("""
-                                SELECT fid, nickname, furnace_lv
-                                FROM users 
-                                WHERE alliance = ? 
-                                ORDER BY furnace_lv DESC, nickname
-                            """, (alliance_id,))
-                            members = cursor.fetchall()
+                        members = self.cog._get_members_by_alliance(alliance_id)
                         
                         if not members:
                             await interaction.response.send_message(
@@ -755,7 +768,7 @@ class AllianceMemberOperations(commands.Cog):
                     )
 
                 except Exception as e:
-                    self.log_message(f"Error in view_members_button: {e}")
+                    self.cog.log_message(f"Error in view_members_button: {e}")
                     if not button_interaction.response.is_done():
                         await button_interaction.response.send_message(
                             "❌ An error occurred while displaying the member list.",
@@ -774,19 +787,20 @@ class AllianceMemberOperations(commands.Cog):
             @discord.ui.button(label="Transfer Member", emoji="🔄", style=discord.ButtonStyle.primary)
             async def transfer_member_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
                 try:
-                    with sqlite3.connect('db/settings.sqlite') as settings_db:
-                        cursor = settings_db.cursor()
-                        cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (button_interaction.user.id,))
-                        admin_result = cursor.fetchone()
+                    admin_info = get_admin(button_interaction.user.id)
+                    
+                    if not admin_info:
+                        await button_interaction.response.send_message(
+                            "❌ You do not have permission to use this command.", 
+                            ephemeral=True
+                        )
+                        return
                         
-                        if not admin_result:
-                            await button_interaction.response.send_message(
-                                "❌ You do not have permission to use this command.", 
-                                ephemeral=True
-                            )
-                            return
-                            
-                        is_initial = admin_result[0]
+                    is_initial = 0
+                    if isinstance(admin_info, tuple):
+                        is_initial = int(admin_info[1])
+                    elif isinstance(admin_info, dict):
+                        is_initial = int(admin_info.get('is_initial', 0))
 
                     alliances, special_alliances, is_global = await self.cog.get_admin_alliances(
                         button_interaction.user.id, 
@@ -825,11 +839,11 @@ class AllianceMemberOperations(commands.Cog):
 
                     alliances_with_counts = []
                     for alliance_id, name in alliances:
-                        with sqlite3.connect('db/users.sqlite') as users_db:
-                            cursor = users_db.cursor()
-                            cursor.execute("SELECT COUNT(*) FROM users WHERE alliance = ?", (alliance_id,))
-                            member_count = cursor.fetchone()[0]
-                            alliances_with_counts.append((alliance_id, name, member_count))
+                        try:
+                            member_count = self.cog._count_members(alliance_id)
+                        except Exception:
+                            member_count = 0
+                        alliances_with_counts.append((alliance_id, name, member_count))
 
                     view = AllianceSelectView(alliances_with_counts, self.cog)
                     
@@ -837,10 +851,13 @@ class AllianceMemberOperations(commands.Cog):
                         try:
                             source_alliance_id = int(view.current_select.values[0])
                             
-                            with sqlite3.connect('db/alliance.sqlite') as alliance_db:
-                                cursor = alliance_db.cursor()
-                                cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (source_alliance_id,))
-                                source_alliance_name = cursor.fetchone()[0]
+                            try:
+                                with get_db_connection('alliance.sqlite') as alliance_db:
+                                    cursor = alliance_db.cursor()
+                                    cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (source_alliance_id,))
+                                    source_alliance_name = cursor.fetchone()[0]
+                            except Exception:
+                                source_alliance_name = "Unknown Alliance"
 
                             members = self.cog._get_members_by_alliance(source_alliance_id)
 
@@ -913,10 +930,13 @@ class AllianceMemberOperations(commands.Cog):
                                     target_alliance_id = int(target_select.values[0])
                                     
                                     try:
-                                        with sqlite3.connect('db/alliance.sqlite') as alliance_db:
-                                            cursor = alliance_db.cursor()
-                                            cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (target_alliance_id,))
-                                            target_alliance_name = cursor.fetchone()[0]
+                                        try:
+                                            with get_db_connection('alliance.sqlite') as alliance_db:
+                                                cursor = alliance_db.cursor()
+                                                cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (target_alliance_id,))
+                                                target_alliance_name = cursor.fetchone()[0]
+                                        except Exception:
+                                            target_alliance_name = "Unknown Alliance"
 
                                         transferred = self.cog._update_member_alliance(selected_fid, target_alliance_id)
 
@@ -961,7 +981,7 @@ class AllianceMemberOperations(commands.Cog):
                             )
 
                         except Exception as e:
-                            self.log_message(f"Source callback error: {e}")
+                            self.cog.log_message(f"Source callback error: {e}")
                             await interaction.response.send_message(
                                 "❌ An error occurred. Please try again.",
                                 ephemeral=True
@@ -975,7 +995,7 @@ class AllianceMemberOperations(commands.Cog):
                     )
 
                 except Exception as e:
-                    self.log_message(f"Error in transfer_member_button: {e}")
+                    self.cog.log_message(f"Error in transfer_member_button: {e}")
                     await button_interaction.response.send_message(
                         "❌ An error occurred during the transfer operation.",
                         ephemeral=True
@@ -1392,17 +1412,7 @@ class AllianceMemberOperations(commands.Cog):
         await message.edit(embed=embed)
 
     async def is_admin(self, user_id):
-        try:
-            with sqlite3.connect('db/settings.sqlite') as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT id FROM admin WHERE id = ?", (user_id,))
-                result = cursor.fetchone()
-                is_admin = result is not None
-                return is_admin
-        except Exception as e:
-            self.log_message(f"Error in admin check: {str(e)}")
-            self.log_message(f"Error details: {str(e.__class__.__name__)}")
-            return False
+        return get_admin(user_id) is not None
 
     def cog_unload(self):
         self.conn_users.close()
@@ -1410,20 +1420,21 @@ class AllianceMemberOperations(commands.Cog):
 
     async def get_admin_alliances(self, user_id: int, guild_id: int):
         try:
-            with sqlite3.connect('db/settings.sqlite') as settings_db:
-                cursor = settings_db.cursor()
-                cursor.execute("SELECT is_initial FROM admin WHERE id = ?", (user_id,))
-                admin_result = cursor.fetchone()
+            admin_info = get_admin(user_id)
+            
+            if not admin_info:
+                self.log_message(f"User {user_id} is not an admin")
+                return [], [], False
                 
-                if not admin_result:
-                    self.log_message(f"User {user_id} is not an admin")
-                    return [], [], False
-                    
-                is_initial = admin_result[0]
-                
+            is_initial = 0
+            if isinstance(admin_info, tuple):
+                is_initial = int(admin_info[1])
+            elif isinstance(admin_info, dict):
+                is_initial = int(admin_info.get('is_initial', 0))
+            
             if is_initial == 1:
                 
-                with sqlite3.connect('db/alliance.sqlite') as alliance_db:
+                with get_db_connection('alliance.sqlite') as alliance_db:
                     cursor = alliance_db.cursor()
                     cursor.execute("SELECT alliance_id, name FROM alliance_list ORDER BY name")
                     alliances = cursor.fetchall()
@@ -1432,7 +1443,7 @@ class AllianceMemberOperations(commands.Cog):
             server_alliances = []
             special_alliances = []
             
-            with sqlite3.connect('db/alliance.sqlite') as alliance_db:
+            with get_db_connection('alliance.sqlite') as alliance_db:
                 cursor = alliance_db.cursor()
                 cursor.execute("""
                     SELECT DISTINCT alliance_id, name 
@@ -1442,7 +1453,7 @@ class AllianceMemberOperations(commands.Cog):
                 """, (guild_id,))
                 server_alliances = cursor.fetchall()
             
-            with sqlite3.connect('db/settings.sqlite') as settings_db:
+            with get_db_connection('settings.sqlite') as settings_db:
                 cursor = settings_db.cursor()
                 cursor.execute("""
                     SELECT alliances_id 
@@ -1452,7 +1463,7 @@ class AllianceMemberOperations(commands.Cog):
                 special_alliance_ids = cursor.fetchall()
                 
             if special_alliance_ids:
-                with sqlite3.connect('db/alliance.sqlite') as alliance_db:
+                with get_db_connection('alliance.sqlite') as alliance_db:
                     cursor = alliance_db.cursor()
                     placeholders = ','.join('?' * len(special_alliance_ids))
                     cursor.execute(f"""
@@ -1471,6 +1482,7 @@ class AllianceMemberOperations(commands.Cog):
             return all_alliances, special_alliances, False
                 
         except Exception as e:
+            self.log_message(f"Error in get_admin_alliances: {e}")
             return [], [], False
 
     async def handle_button_interaction(self, interaction: discord.Interaction):

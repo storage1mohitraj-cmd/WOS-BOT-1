@@ -10,6 +10,29 @@ try:
     from db.mongo_adapters import mongo_enabled, GiftCodesAdapter, AdminsAdapter
 except Exception:
     mongo_enabled = lambda: False
+    class GiftCodesAdapter:
+        @staticmethod
+        def get_all(): return []
+        @staticmethod
+        def insert(code, date, status): return False
+
+# Import shared utilities
+try:
+    from db_utils import get_db_connection
+    from admin_utils import is_admin, is_global_admin, get_admin
+except ImportError:
+    # Fallback if utilities are not available
+    from pathlib import Path
+    def get_db_connection(db_name: str, **kwargs):
+        repo_root = Path(__file__).resolve().parents[1]
+        db_dir = repo_root / "db"
+        db_dir.mkdir(parents=True, exist_ok=True)
+        return sqlite3.connect(str(db_dir / db_name), **kwargs)
+    
+    def is_global_admin(user_id): return False
+    def is_admin(user_id): return False
+    def get_admin(user_id): return None
+
 import sqlite3
 from discord.ext import tasks
 import asyncio
@@ -71,9 +94,7 @@ class GiftOperations(commands.Cog):
             self.conn = bot.conn
             self.cursor = self.conn.cursor()
         else:
-            if not os.path.exists('db'):
-                os.makedirs('db')
-            self.conn = sqlite3.connect('db/giftcode.sqlite')
+            self.conn = get_db_connection('giftcode.sqlite')
             self.cursor = self.conn.cursor()
 
         # Ensure core gift_codes table exists before any alterations or queries
@@ -105,14 +126,13 @@ class GiftOperations(commands.Cog):
         self.conn.commit()
 
         # Settings DB Connection
-        if not os.path.exists('db'): os.makedirs('db')
-        self.settings_conn = sqlite3.connect('db/settings.sqlite')
+        self.settings_conn = get_db_connection('settings.sqlite')
         self.settings_cursor = self.settings_conn.cursor()
 
         # Alliance DB Connection
-        if not os.path.exists('db'): os.makedirs('db')
-        self.alliance_conn = sqlite3.connect('db/alliance.sqlite')
+        self.alliance_conn = get_db_connection('alliance.sqlite')
         self.alliance_cursor = self.alliance_conn.cursor()
+
 
         # Gift Code Channel Table
         self.cursor.execute("""
@@ -1990,12 +2010,6 @@ class GiftOperations(commands.Cog):
         if not self.cursor.fetchone():
             await message.add_reaction("⏳")
 
-    async def get_admin_info(self, user_id):
-        self.settings_cursor.execute("""
-            SELECT id, is_initial FROM admin WHERE id = ?
-        """, (user_id,))
-        return self.settings_cursor.fetchone()
-
     async def get_alliance_names(self, user_id, is_global=False):
         if is_global:
             self.alliance_cursor.execute("SELECT name FROM alliance_list")
@@ -2019,11 +2033,17 @@ class GiftOperations(commands.Cog):
         user_id = interaction.user.id
         guild_id = interaction.guild_id if interaction.guild else None
 
-        admin_info = await self.get_admin_info(user_id)
+        # Use admin_utils
+        admin_info = get_admin(user_id)
         if not admin_info:
             return []
 
-        is_global = admin_info[1] == 1
+        # Check is_global (handle both tuple and dict)
+        is_global = False
+        if isinstance(admin_info, tuple):
+            is_global = int(admin_info[1]) == 1
+        elif isinstance(admin_info, dict):
+            is_global = int(admin_info.get('is_initial', 0)) == 1
 
         if is_global:
             self.alliance_cursor.execute("SELECT alliance_id, name FROM alliance_list")
@@ -2058,8 +2078,8 @@ class GiftOperations(commands.Cog):
         return []
 
     async def setup_gift_channel(self, interaction: discord.Interaction):
-        admin_info = await self.get_admin_info(interaction.user.id)
-        if not admin_info:
+        # Use admin_utils for robust check
+        if not get_admin(interaction.user.id):
             await interaction.response.send_message(
                 "❌ You are not authorized to perform this action.",
                 ephemeral=True
@@ -2080,11 +2100,17 @@ class GiftOperations(commands.Cog):
 
         alliances_with_counts = []
         for alliance_id, name in available_alliances:
-            with sqlite3.connect('db/users.sqlite') as users_db:
-                cursor = users_db.cursor()
-                cursor.execute("SELECT COUNT(*) FROM users WHERE alliance = ?", (alliance_id,))
-                member_count = cursor.fetchone()[0]
-                alliances_with_counts.append((alliance_id, name, member_count))
+            # Use get_db_connection for users.sqlite
+            try:
+                with get_db_connection('users.sqlite') as users_db:
+                    cursor = users_db.cursor()
+                    cursor.execute("SELECT COUNT(*) FROM users WHERE alliance = ?", (alliance_id,))
+                    result = cursor.fetchone()
+                    member_count = result[0] if result else 0
+                    alliances_with_counts.append((alliance_id, name, member_count))
+            except Exception as e:
+                print(f"Error getting member count for alliance {alliance_id}: {e}")
+                alliances_with_counts.append((alliance_id, name, 0))
 
         self.cursor.execute("SELECT alliance_id, channel_id FROM giftcode_channel")
         current_channels = dict(self.cursor.fetchall())
@@ -2101,7 +2127,7 @@ class GiftOperations(commands.Cog):
         )
 
         view = AllianceSelectView(alliances_with_counts, self)
-
+        
         async def alliance_callback(select_interaction: discord.Interaction):
             try:
                 alliance_id = int(view.current_select.values[0])
@@ -2221,8 +2247,8 @@ class GiftOperations(commands.Cog):
             pass
 
     async def create_gift_code(self, interaction: discord.Interaction):
-        self.settings_cursor.execute("SELECT 1 FROM admin WHERE id = ?", (interaction.user.id,))
-        if not self.settings_cursor.fetchone():
+        # Use admin_utils for robust check
+        if not is_admin(interaction.user.id):
             await interaction.response.send_message(
                 "❌ You are not authorized to create gift codes.",
                 ephemeral=True
@@ -2363,44 +2389,23 @@ class GiftOperations(commands.Cog):
 
     async def delete_gift_code(self, interaction: discord.Interaction):
         try:
-            # Acknowledge the interaction immediately to avoid timeout/Unknown interaction
+            # Acknowledge the interaction immediately
             try:
                 await interaction.response.defer(ephemeral=True)
             except Exception:
                 pass
-            if mongo_enabled():
-                doc = AdminsAdapter.get(interaction.user.id)
-                is_initial = int(doc.get('is_initial', 0)) if doc else 0
-                if is_initial != 1:
-                    await interaction.followup.send(
-                        embed=discord.Embed(
-                            title="❌ Unauthorized Access",
-                            description="This action requires Global Admin privileges.",
-                            color=discord.Color.red()
-                        ),
-                        ephemeral=True
-                    )
-                    return
-            else:
-                settings_conn = sqlite3.connect('db/settings.sqlite')
-                settings_cursor = settings_conn.cursor()
-                settings_cursor.execute("""
-                    SELECT 1 FROM admin 
-                    WHERE id = ? AND is_initial = 1
-                """, (interaction.user.id,))
-                is_admin = settings_cursor.fetchone()
-                settings_cursor.close()
-                settings_conn.close()
-                if not is_admin:
-                    await interaction.followup.send(
-                        embed=discord.Embed(
-                            title="❌ Unauthorized Access",
-                            description="This action requires Global Admin privileges.",
-                            color=discord.Color.red()
-                        ),
-                        ephemeral=True
-                    )
-                    return
+            
+            # Use admin_utils for robust global admin check
+            if not is_global_admin(interaction.user.id):
+                await interaction.followup.send(
+                    embed=discord.Embed(
+                        title="❌ Unauthorized Access",
+                        description="This action requires Global Admin privileges.",
+                        color=discord.Color.red()
+                    ),
+                    ephemeral=True
+                )
+                return
 
             self.cursor.execute("""
                 SELECT 
