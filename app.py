@@ -776,6 +776,85 @@ intents.members = True
 intents.presences = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+# --- Player ID Validation Event Listener -----------------------------------
+@bot.event
+async def on_message(message: discord.Message):
+    """Listen for messages containing 9-digit player IDs and react with validation"""
+    # Process commands first
+    await bot.process_commands(message)
+    
+    # Ignore bot messages
+    if message.author.bot:
+        return
+    
+    # Find all 9-digit numbers in the message
+    # Pattern: exactly 9 consecutive digits
+    pattern = r'\b\d{9}\b'
+    matches = re.findall(pattern, message.content)
+    
+    if not matches:
+        return
+    
+    # Check each 9-digit number found
+    for player_id in matches:
+        try:
+            # Check if the player ID exists in the database and get player details
+            conn_users = sqlite3.connect('db/users.sqlite')
+            c_users = conn_users.cursor()
+            c_users.execute("SELECT fid, nickname, alliance FROM users WHERE fid = ?", (player_id,))
+            result = c_users.fetchone()
+            conn_users.close()
+            
+            if result is not None:
+                # Valid player ID - react with ✅
+                await message.add_reaction('✅')
+                logger.info(f"Valid player ID detected: {player_id} in message {message.id}")
+                
+                # Get player details
+                fid, nickname, alliance_id = result
+                
+                # Get alliance name if player is in an alliance
+                alliance_name = None
+                if alliance_id:
+                    try:
+                        conn_alliance = sqlite3.connect('db/alliance.sqlite')
+                        c_alliance = conn_alliance.cursor()
+                        c_alliance.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (alliance_id,))
+                        alliance_result = c_alliance.fetchone()
+                        conn_alliance.close()
+                        
+                        if alliance_result:
+                            alliance_name = alliance_result[0]
+                    except Exception as e:
+                        logger.error(f"Error fetching alliance name: {e}")
+                
+                # Send a reply with player information
+                if alliance_name:
+                    reply_text = f"✅ **Player Found**\n👤 **{nickname}**\n🏰 Alliance: **{alliance_name}**"
+                else:
+                    reply_text = f"✅ **Player Found**\n👤 **{nickname}**\n🏰 Alliance: *Not in any alliance*"
+                
+                await message.reply(reply_text, mention_author=False)
+                
+            else:
+                # Invalid player ID - react with ❌
+                await message.add_reaction('❌')
+                logger.info(f"Invalid player ID detected: {player_id} in message {message.id}")
+            
+            # Only react once per message (for the first 9-digit number found)
+            break
+            
+        except discord.Forbidden:
+            logger.warning(f"Missing permissions to add reaction in channel {message.channel.id}")
+            break
+        except discord.HTTPException as e:
+            logger.error(f"Failed to add reaction: {e}")
+            break
+        except Exception as e:
+            logger.error(f"Unexpected error processing player ID {player_id}: {e}")
+            break
+
+
 # --- Clean startup banner and logging ----------------------------------
 MAGNUS_ART = r'''
 
