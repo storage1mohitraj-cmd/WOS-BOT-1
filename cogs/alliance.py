@@ -1783,7 +1783,7 @@ class Alliance(commands.Cog):
                         alliance_id INTEGER NOT NULL,
                         channel_id INTEGER NOT NULL,
                         enabled INTEGER DEFAULT 1,
-                        check_interval INTEGER DEFAULT 300,
+                        check_interval INTEGER DEFAULT 240,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         UNIQUE(guild_id, alliance_id)
@@ -1925,22 +1925,17 @@ class Alliance(commands.Cog):
                     api_furnace_lv = api_data.get('stove_lv', current_furnace_lv)
                     
                     # Get historical data
-                    with get_db_connection('settings.sqlite') as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            SELECT nickname, furnace_lv, avatar_image
-                            FROM member_history 
-                            WHERE fid = ? AND alliance_id = ?
-                        """, (str(fid), alliance_id))
-                        
-                        history = cursor.fetchone()
-                        
-                        if history:
-                            old_nickname = history[0]
-                            old_furnace_lv = history[1]
+                    if mongo_enabled() and AllianceMembersAdapter is not None:
+                        # MongoDB Logic
+                        try:
+                            doc = AllianceMembersAdapter.get_member(str(fid)) or {}
+                            
+                            old_nickname = doc.get('nickname') or doc.get('name')
+                            old_furnace_lv = int(doc.get('furnace_lv') or doc.get('furnaceLevel') or doc.get('furnace', 0) or 0)
+                            old_avatar = doc.get('avatar_image', '')
                             
                             # Check for name change
-                            if api_nickname != old_nickname:
+                            if old_nickname and api_nickname != old_nickname:
                                 changes_detected.append({
                                     'type': 'name_change',
                                     'fid': fid,
@@ -1953,8 +1948,6 @@ class Alliance(commands.Cog):
                             
                             # Check for avatar change
                             api_avatar = api_data.get('avatar_image', '')
-                            old_avatar = history[2] if len(history) > 2 else ''
-                            
                             if api_avatar and old_avatar and api_avatar != old_avatar:
                                 changes_detected.append({
                                     'type': 'avatar_change',
@@ -1967,7 +1960,7 @@ class Alliance(commands.Cog):
                                 })
                             
                             # Check for furnace level change
-                            if api_furnace_lv != old_furnace_lv:
+                            if old_furnace_lv > 0 and api_furnace_lv != old_furnace_lv:
                                 changes_detected.append({
                                     'type': 'furnace_change',
                                     'fid': fid,
@@ -1977,16 +1970,84 @@ class Alliance(commands.Cog):
                                     'alliance_name': alliance_name,
                                     'avatar_image': api_data.get('avatar_image', '')
                                 })
-                        
-                        # Update or insert history
-                        api_avatar = api_data.get('avatar_image', '')
-                        cursor.execute("""
-                            INSERT OR REPLACE INTO member_history 
-                            (fid, alliance_id, nickname, furnace_lv, avatar_image, last_checked)
-                            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                        """, (str(fid), alliance_id, api_nickname, api_furnace_lv, api_avatar))
-                        
-                        conn.commit()
+                            
+                            # Update MongoDB document
+                            doc['fid'] = str(fid)
+                            doc['alliance'] = alliance_id
+                            doc['nickname'] = api_nickname
+                            doc['furnace_lv'] = api_furnace_lv
+                            doc['avatar_image'] = api_data.get('avatar_image', '')
+                            doc['last_checked'] = datetime.utcnow()
+                            
+                            AllianceMembersAdapter.upsert_member(str(fid), doc)
+                            
+                        except Exception as e:
+                            self.log_message(f"Error processing MongoDB member update for {fid}: {e}")
+
+                    else:
+                        # SQLite Logic (Fallback)
+                        with get_db_connection('settings.sqlite') as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("""
+                                SELECT nickname, furnace_lv, avatar_image
+                                FROM member_history 
+                                WHERE fid = ? AND alliance_id = ?
+                            """, (str(fid), alliance_id))
+                            
+                            history = cursor.fetchone()
+                            
+                            if history:
+                                old_nickname = history[0]
+                                old_furnace_lv = history[1]
+                                
+                                # Check for name change
+                                if api_nickname != old_nickname:
+                                    changes_detected.append({
+                                        'type': 'name_change',
+                                        'fid': fid,
+                                        'old_value': old_nickname,
+                                        'new_value': api_nickname,
+                                        'furnace_lv': api_furnace_lv,
+                                        'alliance_name': alliance_name,
+                                        'avatar_image': api_data.get('avatar_image', '')
+                                    })
+                                
+                                # Check for avatar change
+                                api_avatar = api_data.get('avatar_image', '')
+                                old_avatar = history[2] if len(history) > 2 else ''
+                                
+                                if api_avatar and old_avatar and api_avatar != old_avatar:
+                                    changes_detected.append({
+                                        'type': 'avatar_change',
+                                        'fid': fid,
+                                        'nickname': api_nickname,
+                                        'old_value': old_avatar,
+                                        'new_value': api_avatar,
+                                        'furnace_lv': api_furnace_lv,
+                                        'alliance_name': alliance_name
+                                    })
+                                
+                                # Check for furnace level change
+                                if api_furnace_lv != old_furnace_lv:
+                                    changes_detected.append({
+                                        'type': 'furnace_change',
+                                        'fid': fid,
+                                        'nickname': api_nickname,
+                                        'old_value': old_furnace_lv,
+                                        'new_value': api_furnace_lv,
+                                        'alliance_name': alliance_name,
+                                        'avatar_image': api_data.get('avatar_image', '')
+                                    })
+                            
+                            # Update or insert history
+                            api_avatar = api_data.get('avatar_image', '')
+                            cursor.execute("""
+                                INSERT OR REPLACE INTO member_history 
+                                (fid, alliance_id, nickname, furnace_lv, avatar_image, last_checked)
+                                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                            """, (str(fid), alliance_id, api_nickname, api_furnace_lv, api_avatar))
+                            
+                            conn.commit()
                 
                 # Add delay to respect rate limits
                 await asyncio.sleep(self.login_handler.request_delay)
@@ -2080,7 +2141,7 @@ class Alliance(commands.Cog):
         self._set_embed_footer(embed)
         return embed
     
-    @tasks.loop(minutes=5)
+    @tasks.loop(minutes=4)
     async def monitor_alliances(self):
         """Background task that monitors alliances for changes"""
         try:
@@ -2269,7 +2330,7 @@ class Alliance(commands.Cog):
                             f"**Alliance ID:** {alliance_id}\n"
                             f"**Log Channel:** <#{channel_id}>\n"
                             f"**Members Tracked:** {len(members)}\n\n"
-                            f"The system will check for changes every 5 minutes.\n"
+                            f"The system will check for changes every 4 minutes.\n"
                             f"You will be notified of any name or furnace level changes."
                         ),
                         color=discord.Color.green()
