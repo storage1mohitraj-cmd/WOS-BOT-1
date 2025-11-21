@@ -1765,7 +1765,7 @@ class Alliance(commands.Cog):
     def _set_embed_footer(self, embed: discord.Embed):
         """Set the standard footer for alliance monitoring embeds"""
         embed.set_footer(
-            text="Whiteout Survival || by Gιɳα 🚀",
+            text="Whiteout Survival || by Magnus 🚀",
             icon_url="https://cdn.discordapp.com/attachments/1435569370389807144/1436745053442805830/unnamed_5.png?ex=6921335a&is=691fe1da&hm=9b8fa5ee98abc7630652de0cca2bd0521be394317e450a9bfdc5c48d0482dffe"
         )
     
@@ -2049,7 +2049,7 @@ class Alliance(commands.Cog):
         elif change['type'] == 'furnace_change':
             # Determine if it's an upgrade or downgrade
             is_upgrade = change['new_value'] > change['old_value']
-            title = "🔥 Furnace Level Up!" if is_upgrade else "📉 Furnace Level Change"
+            title = "🔥 Furnace Level Up 📈" if is_upgrade else "📉 Furnace Level Change"
             color = discord.Color.green() if is_upgrade else discord.Color.orange()
             
             embed = discord.Embed(
