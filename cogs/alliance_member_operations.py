@@ -580,6 +580,7 @@ class AllianceMemberOperations(commands.Cog):
 
                                 async def confirm_callback(confirm_interaction: discord.Interaction):
                                     if confirm_interaction.data["custom_id"] == "confirm_all":
+                                        await confirm_interaction.response.defer()
                                         removed_members = self.cog._delete_members_by_alliance(alliance_id)
                                         
                                         try:
@@ -603,7 +604,7 @@ class AllianceMemberOperations(commands.Cog):
                                                             "**Removed Members:**\n"
                                                             "```\n" + 
                                                             "\n".join([f"FID{idx+1}: {fid}" for idx, (fid, _) in enumerate(removed_members[:20])]) +
-                                                            (f"\n... ve {len(removed_members) - 20} FID more" if len(removed_members) > 20 else "") +
+                                                            (f"\n... and {len(removed_members) - 20} more members" if len(removed_members) > 20 else "") +
                                                             "\n```"
                                                         ),
                                                         color=discord.Color.red()
@@ -624,7 +625,7 @@ class AllianceMemberOperations(commands.Cog):
                                             description=f"A total of **{len(removed_members)}** members have been successfully deleted.",
                                             color=discord.Color.green()
                                         )
-                                        await confirm_interaction.response.edit_message(embed=success_embed, view=None)
+                                        await confirm_interaction.edit_original_response(embed=success_embed, view=None)
                                     else:
                                         cancel_embed = discord.Embed(
                                             title="❌ Operation Cancelled",
@@ -640,6 +641,80 @@ class AllianceMemberOperations(commands.Cog):
                                     embed=confirm_embed,
                                     view=confirm_view
                                 )
+                            
+                            else:
+                                fid = selected_value
+                                nickname = self.cog._get_member_nickname(fid)
+                                
+                                confirm_embed = discord.Embed(
+                                    title="⚠️ Confirm Removal",
+                                    description=f"Are you sure you want to remove **{nickname}** (FID: {fid})?",
+                                    color=discord.Color.red()
+                                )
+                                
+                                confirm_view = discord.ui.View()
+                                confirm_button = discord.ui.Button(label="✅ Confirm", style=discord.ButtonStyle.danger, custom_id="confirm_remove")
+                                cancel_button = discord.ui.Button(label="❌ Cancel", style=discord.ButtonStyle.secondary, custom_id="cancel_remove")
+                                
+                                confirm_view.add_item(confirm_button)
+                                confirm_view.add_item(cancel_button)
+                                
+                                async def confirm_single_callback(confirm_interaction: discord.Interaction):
+                                    if confirm_interaction.data["custom_id"] == "confirm_remove":
+                                        await confirm_interaction.response.defer()
+                                        success = self.cog._delete_member_by_fid(fid)
+                                        
+                                        if success:
+                                            # Log logic
+                                            try:
+                                                with get_db_connection('settings.sqlite') as settings_db:
+                                                    cursor = settings_db.cursor()
+                                                    cursor.execute("SELECT channel_id FROM alliance_logs WHERE alliance_id = ?", (alliance_id,))
+                                                    alliance_log_result = cursor.fetchone()
+                                                    
+                                                    if alliance_log_result and alliance_log_result[0]:
+                                                        log_embed = discord.Embed(
+                                                            title="🗑️ Member Removed",
+                                                            description=(
+                                                                f"**Alliance:** {alliance_name}\n"
+                                                                f"**Administrator:** {confirm_interaction.user.name} (`{confirm_interaction.user.id}`)\n"
+                                                                f"**Member:** {nickname} (`{fid}`)\n"
+                                                                f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                                                            ),
+                                                            color=discord.Color.red()
+                                                        )
+                                                        alliance_channel_id = int(alliance_log_result[0])
+                                                        alliance_log_channel = self.bot.get_channel(alliance_channel_id)
+                                                        if alliance_log_channel:
+                                                            await alliance_log_channel.send(embed=log_embed)
+                                            except Exception:
+                                                pass
+
+                                            success_embed = discord.Embed(
+                                                title="✅ Member Removed",
+                                                description=f"**{nickname}** has been successfully removed.",
+                                                color=discord.Color.green()
+                                            )
+                                            await confirm_interaction.edit_original_response(embed=success_embed, view=None)
+                                        else:
+                                            error_embed = discord.Embed(
+                                                title="❌ Error",
+                                                description="Failed to remove member.",
+                                                color=discord.Color.red()
+                                            )
+                                            await confirm_interaction.edit_original_response(embed=error_embed, view=None)
+                                    else:
+                                        cancel_embed = discord.Embed(
+                                            title="❌ Operation Cancelled",
+                                            description="Member removal cancelled.",
+                                            color=discord.Color.orange()
+                                        )
+                                        await confirm_interaction.response.edit_message(embed=cancel_embed, view=None)
+
+                                confirm_button.callback = confirm_single_callback
+                                cancel_button.callback = confirm_single_callback
+                                
+                                await member_interaction.response.edit_message(embed=confirm_embed, view=confirm_view)
 
                         member_view.callback = member_callback
                         await interaction.response.edit_message(
@@ -1129,11 +1204,29 @@ class AllianceMemberOperations(commands.Cog):
         fids_to_process = []
         
         for fid in ids_list:
-            self.c_users.execute("SELECT nickname FROM users WHERE fid=?", (fid,))
-            existing = self.c_users.fetchone()
-            if existing:
+            existing_nickname = None
+            
+            # Check SQLite
+            try:
+                self.c_users.execute("SELECT nickname FROM users WHERE fid=?", (fid,))
+                existing = self.c_users.fetchone()
+                if existing:
+                    existing_nickname = existing[0]
+            except Exception:
+                pass
+                
+            # Check MongoDB if enabled
+            if not existing_nickname and mongo_enabled() and AllianceMembersAdapter:
+                try:
+                    member = AllianceMembersAdapter.get_member(fid)
+                    if member:
+                        existing_nickname = member.get('nickname') or member.get('name')
+                except Exception:
+                    pass
+            
+            if existing_nickname:
                 # Member already exists in database
-                already_in_db.append((fid, existing[0]))
+                already_in_db.append((fid, existing_nickname))
             else:
                 # Member doesn't exist at all
                 fids_to_process.append(fid)
@@ -1290,6 +1383,22 @@ class AllianceMemberOperations(commands.Cog):
                                     VALUES (?, ?, ?, ?, ?, ?)
                                 """, (fid, nickname, furnace_lv, kid, stove_lv_content, alliance_id))
                                 self.conn_users.commit()
+                                
+                                # MongoDB Insert
+                                if mongo_enabled() and AllianceMembersAdapter:
+                                    try:
+                                        member_doc = {
+                                            'fid': str(fid),
+                                            'nickname': nickname,
+                                            'furnace_lv': furnace_lv,
+                                            'kid': kid,
+                                            'stove_lv_content': stove_lv_content,
+                                            'alliance': int(alliance_id),
+                                            'last_updated': datetime.utcnow()
+                                        }
+                                        AllianceMembersAdapter.upsert_member(str(fid), member_doc)
+                                    except Exception as e:
+                                        self.log_message(f"MongoDB insert error for {fid}: {e}")
                                 
                                 with open(self.log_file, 'a', encoding='utf-8') as f:
                                     f.write(f"[{timestamp}] Successfully added member - FID: {fid}, Nickname: {nickname}, Level: {furnace_lv}\n")

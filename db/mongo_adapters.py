@@ -209,6 +209,7 @@ class AllianceMembersAdapter:
             # Ensure _id is string fid
             data_copy = data.copy()
             data_copy['updated_at'] = now
+            data_copy.pop('created_at', None)
             
             db[AllianceMembersAdapter.COLL].update_one(
                 {'_id': str(fid)},
