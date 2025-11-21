@@ -235,21 +235,50 @@ class AllianceMemberOperations(commands.Cog):
         except Exception:
             return None
 
-    def _delete_member_by_fid(self, fid: str) -> bool:
+    def _get_member_by_fid(self, fid: str) -> tuple | None:
+        """Return (fid, nickname, furnace_lv, alliance_id) or None"""
+        # Try Mongo first
         try:
             if mongo_enabled() and AllianceMembersAdapter is not None:
-                return AllianceMembersAdapter.delete_member(str(fid))
+                doc = AllianceMembersAdapter.get_member(str(fid))
+                if doc:
+                    return (
+                        str(doc.get('fid') or doc.get('id') or doc.get('_id')),
+                        doc.get('nickname') or doc.get('name'),
+                        int(doc.get('furnace_lv') or doc.get('furnaceLevel') or doc.get('furnace', 0) or 0),
+                        int(doc.get('alliance') or doc.get('alliance_id') or 0)
+                    )
         except Exception:
             pass
 
+        # Try SQLite
+        try:
+            with get_db_connection('users.sqlite') as users_db:
+                cursor = users_db.cursor()
+                cursor.execute("SELECT fid, nickname, furnace_lv, alliance FROM users WHERE fid = ?", (fid,))
+                return cursor.fetchone()
+        except Exception:
+            return None
+
+    def _delete_member_by_fid(self, fid: str) -> bool:
+        mongo_success = False
+        try:
+            if mongo_enabled() and AllianceMembersAdapter is not None:
+                mongo_success = AllianceMembersAdapter.delete_member(str(fid))
+        except Exception:
+            pass
+
+        sqlite_success = False
         try:
             with get_db_connection('users.sqlite') as users_db:
                 cursor = users_db.cursor()
                 cursor.execute("DELETE FROM users WHERE fid = ?", (fid,))
                 users_db.commit()
-                return cursor.rowcount > 0
+                sqlite_success = cursor.rowcount > 0
         except Exception:
-            return False
+            pass
+            
+        return mongo_success or sqlite_success
 
     def _delete_members_by_alliance(self, alliance_id: int) -> list:
         """Delete all members for alliance_id. Return list of removed (fid, nickname)."""
@@ -1675,6 +1704,45 @@ class FIDSearchModal(discord.ui.Modal):
                         ephemeral=True
                     )
                 return
+
+            if self.context == "remove":
+                user_result = self.cog._get_member_by_fid(fid)
+                
+                if not user_result:
+                    await interaction.response.send_message("❌ No member with this FID was found.", ephemeral=True)
+                    return
+
+                fid, nickname, furnace_lv, current_alliance_id = user_result
+                
+                confirm_embed = discord.Embed(
+                    title="⚠️ Confirm Removal",
+                    description=f"Are you sure you want to remove **{nickname}** (FID: {fid})?",
+                    color=discord.Color.red()
+                )
+                
+                confirm_view = discord.ui.View()
+                confirm_button = discord.ui.Button(label="✅ Confirm", style=discord.ButtonStyle.danger, custom_id="confirm_remove")
+                cancel_button = discord.ui.Button(label="❌ Cancel", style=discord.ButtonStyle.secondary, custom_id="cancel_remove")
+                
+                confirm_view.add_item(confirm_button)
+                confirm_view.add_item(cancel_button)
+                
+                async def confirm_callback(confirm_interaction: discord.Interaction):
+                    if confirm_interaction.data["custom_id"] == "confirm_remove":
+                        await confirm_interaction.response.defer()
+                        success = self.cog._delete_member_by_fid(fid)
+                        if success:
+                            await confirm_interaction.edit_original_response(embed=discord.Embed(title="✅ Member Removed", description=f"**{nickname}** has been removed.", color=discord.Color.green()), view=None)
+                        else:
+                            await confirm_interaction.edit_original_response(embed=discord.Embed(title="❌ Error", description="Failed to remove member.", color=discord.Color.red()), view=None)
+                    else:
+                        await confirm_interaction.response.edit_message(embed=discord.Embed(title="❌ Cancelled", description="Operation cancelled.", color=discord.Color.orange()), view=None)
+
+                confirm_button.callback = confirm_callback
+                cancel_button.callback = confirm_callback
+                
+                await interaction.response.send_message(embed=confirm_embed, view=confirm_view, ephemeral=True)
+                return
             
             # Original transfer logic
             with get_db_connection('users.sqlite') as users_db:
@@ -1799,6 +1867,7 @@ class MemberSelectView(discord.ui.View):
         self.selected_alliance_id = None
         self.alliances = None
         self.is_remove_operation = is_remove_operation
+        self.context = "remove" if is_remove_operation else "transfer"
         self.update_select_menu()
 
     def update_select_menu(self):
