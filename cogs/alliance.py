@@ -1947,7 +1947,8 @@ class Alliance(commands.Cog):
                                     'old_value': old_nickname,
                                     'new_value': api_nickname,
                                     'furnace_lv': api_furnace_lv,
-                                    'alliance_name': alliance_name
+                                    'alliance_name': alliance_name,
+                                    'avatar_image': api_data.get('avatar_image', '')
                                 })
                             
                             # Check for avatar change
@@ -1973,7 +1974,8 @@ class Alliance(commands.Cog):
                                     'nickname': api_nickname,
                                     'old_value': old_furnace_lv,
                                     'new_value': api_furnace_lv,
-                                    'alliance_name': alliance_name
+                                    'alliance_name': alliance_name,
+                                    'avatar_image': api_data.get('avatar_image', '')
                                 })
                         
                         # Update or insert history
@@ -2020,6 +2022,9 @@ class Alliance(commands.Cog):
             embed.add_field(name="⚔️ Furnace Level", value=f"`{fl_emoji} {furnace_level_str}`", inline=False)
             embed.add_field(name="🏰 Alliance", value=f"`{change['alliance_name']}`", inline=True)
             embed.add_field(name="🕐 Time", value=f"`{timestamp}`", inline=True)
+            
+            if change.get('avatar_image'):
+                embed.set_thumbnail(url=change['avatar_image'])
             
         elif change['type'] == 'avatar_change':
             embed = discord.Embed(
@@ -2068,6 +2073,9 @@ class Alliance(commands.Cog):
             embed.add_field(name="🎉 New Level", value=f"`{new_emoji} {new_level_str}`", inline=True)
             embed.add_field(name="🏰 Alliance", value=f"`{change['alliance_name']}`", inline=True)
             embed.add_field(name="🕐 Time", value=f"`{timestamp}`", inline=True)
+            
+            if change.get('avatar_image'):
+                embed.set_thumbnail(url=change['avatar_image'])
         
         self._set_embed_footer(embed)
         return embed
