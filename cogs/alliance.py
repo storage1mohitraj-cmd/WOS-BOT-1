@@ -1765,7 +1765,7 @@ class Alliance(commands.Cog):
     def _set_embed_footer(self, embed: discord.Embed):
         """Set the standard footer for alliance monitoring embeds"""
         embed.set_footer(
-            text="Whiteout Survival || by Magnus 🚀",
+            text="Whiteout Survival || ICE ❄️",
             icon_url="https://cdn.discordapp.com/attachments/1435569370389807144/1436745053442805830/unnamed_5.png?ex=6921335a&is=691fe1da&hm=9b8fa5ee98abc7630652de0cca2bd0521be394317e450a9bfdc5c48d0482dffe"
         )
     
