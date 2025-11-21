@@ -4,6 +4,10 @@ from discord.ext import commands
 import sqlite3  
 import asyncio
 from datetime import datetime
+from discord.ext import tasks
+from typing import List, Dict, Optional
+import os
+from .login_handler import LoginHandler
 try:
     from db.mongo_adapters import mongo_enabled, AdminsAdapter, AlliancesAdapter, AllianceSettingsAdapter, AllianceMembersAdapter
 except Exception as import_error:
@@ -65,6 +69,54 @@ class Alliance(commands.Cog):
 
         self._create_table()
         self._check_and_add_column()
+
+        # Alliance Monitoring Initialization
+        self.login_handler = LoginHandler()
+        
+        # Level mapping for furnace levels
+        self.level_mapping = {
+            31: "30-1", 32: "30-2", 33: "30-3", 34: "30-4",
+            35: "FC 1", 36: "FC 1-1", 37: "FC 1-2", 38: "FC 1-3", 39: "FC 1-4",
+            40: "FC 2", 41: "FC 2-1", 42: "FC 2-2", 43: "FC 2-3", 44: "FC 2-4",
+            45: "FC 3", 46: "FC 3-1", 47: "FC 3-2", 48: "FC 3-3", 49: "FC 3-4",
+            50: "FC 4", 51: "FC 4-1", 52: "FC 4-2", 53: "FC 4-3", 54: "FC 4-4",
+            55: "FC 5", 56: "FC 5-1", 57: "FC 5-2", 58: "FC 5-3", 59: "FC 5-4",
+            60: "FC 6", 61: "FC 6-1", 62: "FC 6-2", 63: "FC 6-3", 64: "FC 6-4",
+            65: "FC 7", 66: "FC 7-1", 67: "FC 7-2", 68: "FC 7-3", 69: "FC 7-4",
+            70: "FC 8", 71: "FC 8-1", 72: "FC 8-2", 73: "FC 8-3", 74: "FC 8-4",
+            75: "FC 9", 76: "FC 9-1", 77: "FC 9-2", 78: "FC 9-3", 79: "FC 9-4",
+            80: "FC 10", 81: "FC 10-1", 82: "FC 10-2", 83: "FC 10-3", 84: "FC 10-4"
+        }
+        
+        # Furnace level emojis
+        self.fl_emojis = {
+            range(35, 40): "<:fc1:1326751863764156528>",
+            range(40, 45): "<:fc2:1326751886954594315>",
+            range(45, 50): "<:fc3:1326751903912034375>",
+            range(50, 55): "<:fc4:1326751938674692106>",
+            range(55, 60): "<:fc5:1326751952750776331>",
+            range(60, 65): "<:fc6:1326751966184869981>",
+            range(65, 70): "<:fc7:1326751983939489812>",
+            range(70, 75): "<:fc8:1326751996707082240>",
+            range(75, 80): "<:fc9:1326752008505528331>",
+            range(80, 85): "<:fc10:1326752023001174066>"
+        }
+        
+        # Logging
+        self.log_directory = 'log'
+        if not os.path.exists(self.log_directory):
+            os.makedirs(self.log_directory)
+        self.log_file = os.path.join(self.log_directory, 'alliance_monitoring.txt')
+        
+        # Initialize monitoring tables
+        self._initialize_monitoring_tables()
+        
+        # Start background monitoring task
+        self.monitor_alliances.start()
+    
+    def cog_unload(self):
+        """Clean up when cog is unloaded"""
+        self.monitor_alliances.cancel()
 
     def _create_table(self):
         # Core alliance list
@@ -1695,6 +1747,775 @@ class Alliance(commands.Cog):
             print(f"Bot operations button error: {e}")
             await interaction.response.send_message(
                 "❌ An error occurred. Please try again.",
+                ephemeral=True
+            )
+
+    # =========================================================================
+    # ALLIANCE MONITORING METHODS
+    # =========================================================================
+
+    def log_message(self, message: str):
+        """Log a message with timestamp"""
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        log_entry = f"[{timestamp}] {message}\n"
+        
+        with open(self.log_file, 'a', encoding='utf-8') as f:
+            f.write(log_entry)
+
+    def _set_embed_footer(self, embed: discord.Embed):
+        """Set the standard footer for alliance monitoring embeds"""
+        embed.set_footer(
+            text="Whiteout Survival || by Gιɳα 🚀",
+            icon_url="https://cdn.discordapp.com/attachments/1435569370389807144/1436745053442805830/unnamed_5.png?ex=6921335a&is=691fe1da&hm=9b8fa5ee98abc7630652de0cca2bd0521be394317e450a9bfdc5c48d0482dffe"
+        )
+    
+    def _initialize_monitoring_tables(self):
+        """Create necessary database tables if they don't exist"""
+        try:
+            with get_db_connection('settings.sqlite') as conn:
+                cursor = conn.cursor()
+                
+                # Alliance monitoring configuration table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS alliance_monitoring (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        guild_id INTEGER NOT NULL,
+                        alliance_id INTEGER NOT NULL,
+                        channel_id INTEGER NOT NULL,
+                        enabled INTEGER DEFAULT 1,
+                        check_interval INTEGER DEFAULT 300,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(guild_id, alliance_id)
+                    )
+                """)
+                
+                # Member history table for change detection
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS member_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        fid TEXT NOT NULL,
+                        alliance_id INTEGER NOT NULL,
+                        nickname TEXT NOT NULL,
+                        furnace_lv INTEGER NOT NULL,
+                        last_checked TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(fid, alliance_id)
+                    )
+                """)
+                
+                conn.commit()
+                self.log_message("Database tables initialized successfully")
+                
+                # Check if avatar_image column exists in member_history
+                try:
+                    cursor.execute("SELECT avatar_image FROM member_history LIMIT 1")
+                except Exception:
+                    try:
+                        cursor.execute("ALTER TABLE member_history ADD COLUMN avatar_image TEXT")
+                        conn.commit()
+                        self.log_message("Added avatar_image column to member_history")
+                    except Exception as e:
+                        self.log_message(f"Error adding avatar_image column: {e}")
+                        
+        except Exception as e:
+            self.log_message(f"Error initializing database: {e}")
+    
+    def get_fl_emoji(self, fl_level: int) -> str:
+        """Get emoji for furnace level"""
+        for level_range, emoji in self.fl_emojis.items():
+            if fl_level in level_range:
+                return emoji
+        return "🔥"
+    
+    def _get_monitoring_members(self, alliance_id: int) -> list:
+        """Get all members of an alliance from database"""
+        members = []
+        try:
+            if mongo_enabled() and AllianceMembersAdapter is not None:
+                docs = AllianceMembersAdapter.get_all_members() or []
+                res = []
+                for d in docs:
+                    try:
+                        if int(d.get('alliance') or d.get('alliance_id') or 0) != int(alliance_id):
+                            continue
+                        fid = str(d.get('fid') or d.get('id') or d.get('_id'))
+                        nickname = d.get('nickname') or d.get('name') or ''
+                        furnace_lv = int(d.get('furnace_lv') or d.get('furnaceLevel') or d.get('furnace', 0) or 0)
+                        res.append((fid, nickname, furnace_lv))
+                    except Exception:
+                        continue
+                if res:
+                    return res
+        except Exception:
+            pass
+
+        # SQLite fallback
+        try:
+            with get_db_connection('users.sqlite') as users_db:
+                cursor = users_db.cursor()
+                cursor.execute("SELECT fid, nickname, furnace_lv FROM users WHERE alliance = ?", (alliance_id,))
+                return cursor.fetchall()
+        except Exception:
+            return []
+    
+    async def _get_monitored_alliances(self) -> List[Dict]:
+        """Get all alliances that are being monitored"""
+        try:
+            with get_db_connection('settings.sqlite') as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, guild_id, alliance_id, channel_id, enabled, check_interval
+                    FROM alliance_monitoring
+                    WHERE enabled = 1
+                """)
+                
+                results = []
+                for row in cursor.fetchall():
+                    results.append({
+                        'id': row[0],
+                        'guild_id': row[1],
+                        'alliance_id': row[2],
+                        'channel_id': row[3],
+                        'enabled': row[4],
+                        'check_interval': row[5]
+                    })
+                return results
+        except Exception as e:
+            self.log_message(f"Error getting monitored alliances: {e}")
+            return []
+    
+    async def _check_alliance_changes(self, alliance_id: int, channel_id: int, guild_id: int):
+        """Check for changes in an alliance and post notifications"""
+        try:
+            # Get alliance name
+            alliance_name = "Unknown Alliance"
+            try:
+                with get_db_connection('alliance.sqlite') as alliance_db:
+                    cursor = alliance_db.cursor()
+                    cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (alliance_id,))
+                    result = cursor.fetchone()
+                    if result:
+                        alliance_name = result[0]
+            except Exception as e:
+                self.log_message(f"Error getting alliance name: {e}")
+            
+            # Get current members from database
+            current_members = self._get_monitoring_members(alliance_id)
+            
+            if not current_members:
+                self.log_message(f"No members found for alliance {alliance_id}")
+                return
+            
+            # Get channel
+            channel = self.bot.get_channel(channel_id)
+            if not channel:
+                self.log_message(f"Channel {channel_id} not found")
+                return
+            
+            # Check each member for changes
+            changes_detected = []
+            
+            for fid, current_nickname, current_furnace_lv in current_members:
+                # Fetch latest data from API
+                api_result = await self.login_handler.fetch_player_data(str(fid))
+                
+                if api_result['status'] == 'success':
+                    api_data = api_result['data']
+                    api_nickname = api_data.get('nickname', current_nickname)
+                    api_furnace_lv = api_data.get('stove_lv', current_furnace_lv)
+                    
+                    # Get historical data
+                    with get_db_connection('settings.sqlite') as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            SELECT nickname, furnace_lv, avatar_image
+                            FROM member_history 
+                            WHERE fid = ? AND alliance_id = ?
+                        """, (str(fid), alliance_id))
+                        
+                        history = cursor.fetchone()
+                        
+                        if history:
+                            old_nickname = history[0]
+                            old_furnace_lv = history[1]
+                            
+                            # Check for name change
+                            if api_nickname != old_nickname:
+                                changes_detected.append({
+                                    'type': 'name_change',
+                                    'fid': fid,
+                                    'old_value': old_nickname,
+                                    'new_value': api_nickname,
+                                    'furnace_lv': api_furnace_lv,
+                                    'alliance_name': alliance_name
+                                })
+                            
+                            # Check for avatar change
+                            api_avatar = api_data.get('avatar_image', '')
+                            old_avatar = history[2] if len(history) > 2 else ''
+                            
+                            if api_avatar and old_avatar and api_avatar != old_avatar:
+                                changes_detected.append({
+                                    'type': 'avatar_change',
+                                    'fid': fid,
+                                    'nickname': api_nickname,
+                                    'old_value': old_avatar,
+                                    'new_value': api_avatar,
+                                    'furnace_lv': api_furnace_lv,
+                                    'alliance_name': alliance_name
+                                })
+                            
+                            # Check for furnace level change
+                            if api_furnace_lv != old_furnace_lv:
+                                changes_detected.append({
+                                    'type': 'furnace_change',
+                                    'fid': fid,
+                                    'nickname': api_nickname,
+                                    'old_value': old_furnace_lv,
+                                    'new_value': api_furnace_lv,
+                                    'alliance_name': alliance_name
+                                })
+                        
+                        # Update or insert history
+                        api_avatar = api_data.get('avatar_image', '')
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO member_history 
+                            (fid, alliance_id, nickname, furnace_lv, avatar_image, last_checked)
+                            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                        """, (str(fid), alliance_id, api_nickname, api_furnace_lv, api_avatar))
+                        
+                        conn.commit()
+                
+                # Add delay to respect rate limits
+                await asyncio.sleep(self.login_handler.request_delay)
+            
+            # Post change notifications
+            for change in changes_detected:
+                embed = self._create_change_embed(change)
+                await channel.send(embed=embed)
+                self.log_message(f"Posted {change['type']} notification for FID {change['fid']}")
+            
+            if changes_detected:
+                self.log_message(f"Detected {len(changes_detected)} changes for alliance {alliance_id}")
+            
+        except Exception as e:
+            self.log_message(f"Error checking alliance {alliance_id}: {e}")
+    
+    def _create_change_embed(self, change: Dict) -> discord.Embed:
+        """Create an attractive embed for a detected change"""
+        timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+        
+        if change['type'] == 'name_change':
+            embed = discord.Embed(
+                title="👤 Name Change Detected",
+                color=discord.Color.blue()
+            )
+            
+            furnace_level_str = self.level_mapping.get(change['furnace_lv'], str(change['furnace_lv']))
+            fl_emoji = self.get_fl_emoji(change['furnace_lv'])
+            
+            embed.add_field(name="🆔 Player ID", value=f"`{change['fid']}`", inline=False)
+            embed.add_field(name="📝 Old Name", value=f"~~`{change['old_value']}`~~", inline=True)
+            embed.add_field(name="✨ New Name", value=f"**`{change['new_value']}`**", inline=True)
+            embed.add_field(name="⚔️ Furnace Level", value=f"`{fl_emoji} {furnace_level_str}`", inline=False)
+            embed.add_field(name="🏰 Alliance", value=f"`{change['alliance_name']}`", inline=True)
+            embed.add_field(name="🕐 Time", value=f"`{timestamp}`", inline=True)
+            
+        elif change['type'] == 'avatar_change':
+            embed = discord.Embed(
+                title="🖼️ Avatar Change Detected",
+                color=discord.Color.purple()
+            )
+            
+            furnace_level_str = self.level_mapping.get(change['furnace_lv'], str(change['furnace_lv']))
+            fl_emoji = self.get_fl_emoji(change['furnace_lv'])
+            
+            embed.add_field(name="🆔 Player ID", value=f"`{change['fid']}`", inline=False)
+            embed.add_field(name="👤 Player", value=f"`{change['nickname']}`", inline=False)
+            embed.add_field(name="⚔️ Furnace Level", value=f"`{fl_emoji} {furnace_level_str}`", inline=False)
+            embed.add_field(name="🏰 Alliance", value=f"`{change['alliance_name']}`", inline=True)
+            embed.add_field(name="🕐 Time", value=f"`{timestamp}`", inline=True)
+            embed.add_field(name="Old Profile ↗️", value="*(See Thumbnail)*", inline=True)
+            
+            embed.add_field(name="New Profile ⬇️", value="*(See Image Below)*", inline=False)
+            
+            # Set old avatar as thumbnail and new avatar as image
+            if change['old_value']:
+                embed.set_thumbnail(url=change['old_value'])
+            
+            if change['new_value']:
+                embed.set_image(url=change['new_value'])
+            
+        elif change['type'] == 'furnace_change':
+            # Determine if it's an upgrade or downgrade
+            is_upgrade = change['new_value'] > change['old_value']
+            title = "🔥 Furnace Level Up!" if is_upgrade else "📉 Furnace Level Change"
+            color = discord.Color.green() if is_upgrade else discord.Color.orange()
+            
+            embed = discord.Embed(
+                title=title,
+                color=color
+            )
+            
+            old_level_str = self.level_mapping.get(change['old_value'], str(change['old_value']))
+            new_level_str = self.level_mapping.get(change['new_value'], str(change['new_value']))
+            old_emoji = self.get_fl_emoji(change['old_value'])
+            new_emoji = self.get_fl_emoji(change['new_value'])
+            
+            embed.add_field(name="🆔 Player ID", value=f"`{change['fid']}`", inline=False)
+            embed.add_field(name="👤 Player", value=f"`{change['nickname']}`", inline=False)
+            embed.add_field(name="📊 Old Level", value=f"`{old_emoji} {old_level_str}`", inline=True)
+            embed.add_field(name="🎉 New Level", value=f"`{new_emoji} {new_level_str}`", inline=True)
+            embed.add_field(name="🏰 Alliance", value=f"`{change['alliance_name']}`", inline=True)
+            embed.add_field(name="🕐 Time", value=f"`{timestamp}`", inline=True)
+        
+        self._set_embed_footer(embed)
+        return embed
+    
+    @tasks.loop(minutes=5)
+    async def monitor_alliances(self):
+        """Background task that monitors alliances for changes"""
+        try:
+            self.log_message("Starting alliance monitoring cycle")
+            
+            monitored = await self._get_monitored_alliances()
+            
+            if not monitored:
+                self.log_message("No alliances being monitored")
+                return
+            
+            self.log_message(f"Monitoring {len(monitored)} alliance(s)")
+            
+            for config in monitored:
+                await self._check_alliance_changes(
+                    config['alliance_id'],
+                    config['channel_id'],
+                    config['guild_id']
+                )
+                
+                # Add delay between alliances
+                await asyncio.sleep(5)
+            
+            self.log_message("Alliance monitoring cycle completed")
+            
+        except Exception as e:
+            self.log_message(f"Error in monitoring task: {e}")
+    
+    @monitor_alliances.before_loop
+    async def before_monitor_alliances(self):
+        """Wait for bot to be ready before starting monitoring"""
+        await self.bot.wait_until_ready()
+        self.log_message("Alliance monitoring task ready")
+    
+    @app_commands.command(name="setalliancelogchannel", description="Set the channel for alliance change logs")
+    @app_commands.describe(channel="The channel where alliance changes will be logged")
+    async def set_alliance_log_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """Set the log channel for alliance monitoring"""
+        try:
+            # Check admin permissions
+            admin_info = self._get_admin(interaction.user.id)
+            if not admin_info:
+                await interaction.response.send_message(
+                    "❌ You don't have permission to use this command.",
+                    ephemeral=True
+                )
+                return
+            
+            # Store the channel preference (will be linked to alliance in selectalliance command)
+            await interaction.response.send_message(
+                f"✅ Alliance log channel set to {channel.mention}\n\n"
+                f"Now use `/selectalliance` to choose which alliance to monitor in this channel.",
+                ephemeral=True
+            )
+            
+            # Store in a temporary attribute for the next selectalliance call
+            if not hasattr(self, 'pending_channels'):
+                self.pending_channels = {}
+            self.pending_channels[interaction.user.id] = channel.id
+            
+        except Exception as e:
+            self.log_message(f"Error in set_alliance_log_channel: {e}")
+            await interaction.response.send_message(
+                "❌ An error occurred while setting the log channel.",
+                ephemeral=True
+            )
+    
+    @app_commands.command(name="selectalliance", description="Select an alliance to monitor for changes")
+    async def select_alliance(self, interaction: discord.Interaction):
+        """Select which alliance to monitor"""
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            # Check admin permissions
+            admin_info = self._get_admin(interaction.user.id)
+            if not admin_info:
+                await interaction.followup.send(
+                    "❌ You don't have permission to use this command.",
+                    ephemeral=True
+                )
+                return
+            
+            # Check if user has set a channel first
+            if not hasattr(self, 'pending_channels') or interaction.user.id not in self.pending_channels:
+                await interaction.followup.send(
+                    "❌ Please use `/setalliancelogchannel` first to set the log channel.",
+                    ephemeral=True
+                )
+                return
+            
+            channel_id = self.pending_channels[interaction.user.id]
+            
+            # Get available alliances
+            try:
+                with get_db_connection('alliance.sqlite') as alliance_db:
+                    cursor = alliance_db.cursor()
+                    cursor.execute("SELECT alliance_id, name FROM alliance_list ORDER BY name")
+                    alliances = cursor.fetchall()
+            except Exception as e:
+                self.log_message(f"Error getting alliances: {e}")
+                await interaction.followup.send(
+                    "❌ Error retrieving alliance list.",
+                    ephemeral=True
+                )
+                return
+            
+            if not alliances:
+                await interaction.followup.send(
+                    "❌ No alliances found in the database.",
+                    ephemeral=True
+                )
+                return
+            
+            # Create selection embed
+            embed = discord.Embed(
+                title="🏰 Select Alliance to Monitor",
+                description=(
+                    "Choose which alliance you want to monitor for member changes.\n\n"
+                    "**Monitored Changes:**\n"
+                    "• 👤 Name changes\n"
+                    "• 🔥 Furnace level changes\n\n"
+                    f"**Log Channel:** <#{channel_id}>"
+                ),
+                color=discord.Color.blue()
+            )
+            
+            # Create select menu
+            options = []
+            for alliance_id, name in alliances[:25]:  # Discord limit of 25 options
+                options.append(
+                    discord.SelectOption(
+                        label=name[:100],
+                        value=str(alliance_id),
+                        description=f"ID: {alliance_id}",
+                        emoji="🏰"
+                    )
+                )
+            
+            select = discord.ui.Select(
+                placeholder="🏰 Choose an alliance...",
+                options=options
+            )
+            
+            async def select_callback(select_interaction: discord.Interaction):
+                alliance_id = int(select.values[0])
+                
+                # Get alliance name
+                alliance_name = "Unknown"
+                for aid, name in alliances:
+                    if aid == alliance_id:
+                        alliance_name = name
+                        break
+                
+                # Save monitoring configuration
+                try:
+                    with get_db_connection('settings.sqlite') as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO alliance_monitoring 
+                            (guild_id, alliance_id, channel_id, enabled, updated_at)
+                            VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
+                        """, (interaction.guild_id, alliance_id, channel_id))
+                        conn.commit()
+                    
+                    # Initialize member history for this alliance
+                    members = self._get_monitoring_members(alliance_id)
+                    if members:
+                        with get_db_connection('settings.sqlite') as conn:
+                            cursor = conn.cursor()
+                            for fid, nickname, furnace_lv in members:
+                                cursor.execute("""
+                                    INSERT OR REPLACE INTO member_history 
+                                    (fid, alliance_id, nickname, furnace_lv, last_checked)
+                                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                                """, (str(fid), alliance_id, nickname, furnace_lv))
+                            conn.commit()
+                    
+                    # Clean up pending channel
+                    if hasattr(self, 'pending_channels') and interaction.user.id in self.pending_channels:
+                        del self.pending_channels[interaction.user.id]
+                    
+                    success_embed = discord.Embed(
+                        title="✅ Alliance Monitoring Enabled",
+                        description=(
+                            f"**Alliance:** {alliance_name}\n"
+                            f"**Alliance ID:** {alliance_id}\n"
+                            f"**Log Channel:** <#{channel_id}>\n"
+                            f"**Members Tracked:** {len(members)}\n\n"
+                            f"The system will check for changes every 5 minutes.\n"
+                            f"You will be notified of any name or furnace level changes."
+                        ),
+                        color=discord.Color.green()
+                    )
+                    
+                    self._set_embed_footer(success_embed)
+                    
+                    await select_interaction.response.edit_message(
+                        embed=success_embed,
+                        view=None
+                    )
+                    
+                    self.log_message(f"Monitoring enabled for alliance {alliance_id} ({alliance_name}) in channel {channel_id}")
+                    
+                except Exception as e:
+                    self.log_message(f"Error saving monitoring config: {e}")
+                    await select_interaction.response.edit_message(
+                        content="❌ Error saving monitoring configuration.",
+                        embed=None,
+                        view=None
+                    )
+            
+            select.callback = select_callback
+            view = discord.ui.View()
+            view.add_item(select)
+            
+            await interaction.followup.send(
+                embed=embed,
+                view=view,
+                ephemeral=True
+            )
+            
+        except Exception as e:
+            self.log_message(f"Error in select_alliance: {e}")
+            await interaction.followup.send(
+                "❌ An error occurred while selecting the alliance.",
+                ephemeral=True
+            )
+    
+    @app_commands.command(name="alliancemonitoringstatus", description="View current alliance monitoring status")
+    async def monitoring_status(self, interaction: discord.Interaction):
+        """View current monitoring configuration"""
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            # Get monitoring configurations for this guild
+            with get_db_connection('settings.sqlite') as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT alliance_id, channel_id, enabled, created_at, updated_at
+                    FROM alliance_monitoring
+                    WHERE guild_id = ?
+                    ORDER BY alliance_id
+                """, (interaction.guild_id,))
+                
+                configs = cursor.fetchall()
+            
+            if not configs:
+                await interaction.followup.send(
+                    "ℹ️ No alliances are currently being monitored in this server.",
+                    ephemeral=True
+                )
+                return
+            
+            # Create status embed
+            embed = discord.Embed(
+                title="📊 Alliance Monitoring Status",
+                description=f"Monitoring **{len(configs)}** alliance(s) in this server",
+                color=discord.Color.blue()
+            )
+            
+            for alliance_id, channel_id, enabled, created_at, updated_at in configs:
+                # Get alliance name
+                alliance_name = "Unknown Alliance"
+                member_count = 0
+                try:
+                    with get_db_connection('alliance.sqlite') as alliance_db:
+                        cursor = alliance_db.cursor()
+                        cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (alliance_id,))
+                        result = cursor.fetchone()
+                        if result:
+                            alliance_name = result[0]
+                    
+                    # Get member count from history
+                    with get_db_connection('settings.sqlite') as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            SELECT COUNT(*) FROM member_history WHERE alliance_id = ?
+                        """, (alliance_id,))
+                        member_count = cursor.fetchone()[0]
+                except Exception:
+                    pass
+                
+                status_emoji = "✅" if enabled else "❌"
+                channel_mention = f"<#{channel_id}>"
+                
+                embed.add_field(
+                    name=f"{status_emoji} {alliance_name}",
+                    value=(
+                        f"**ID:** {alliance_id}\n"
+                        f"**Channel:** {channel_mention}\n"
+                        f"**Members:** {member_count}\n"
+                        f"**Status:** {'Active' if enabled else 'Disabled'}"
+                    ),
+                    inline=False
+                )
+            
+            self._set_embed_footer(embed)
+            
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            
+        except Exception as e:
+            self.log_message(f"Error in monitoring_status: {e}")
+            await interaction.followup.send(
+                "❌ An error occurred while retrieving monitoring status.",
+                ephemeral=True
+            )
+    
+    @app_commands.command(name="stopalliancemonitoring", description="Stop monitoring an alliance")
+    async def stop_monitoring(self, interaction: discord.Interaction):
+        """Stop monitoring a specific alliance"""
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            # Check admin permissions
+            admin_info = self._get_admin(interaction.user.id)
+            if not admin_info:
+                await interaction.followup.send(
+                    "❌ You don't have permission to use this command.",
+                    ephemeral=True
+                )
+                return
+            
+            # Get monitored alliances for this guild
+            with get_db_connection('settings.sqlite') as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT alliance_id, channel_id
+                    FROM alliance_monitoring
+                    WHERE guild_id = ? AND enabled = 1
+                """, (interaction.guild_id,))
+                
+                monitored = cursor.fetchall()
+            
+            if not monitored:
+                await interaction.followup.send(
+                    "ℹ️ No alliances are currently being monitored in this server.",
+                    ephemeral=True
+                )
+                return
+            
+            # Get alliance names
+            alliance_options = []
+            for alliance_id, channel_id in monitored:
+                alliance_name = "Unknown Alliance"
+                try:
+                    with get_db_connection('alliance.sqlite') as alliance_db:
+                        cursor = alliance_db.cursor()
+                        cursor.execute("SELECT name FROM alliance_list WHERE alliance_id = ?", (alliance_id,))
+                        result = cursor.fetchone()
+                        if result:
+                            alliance_name = result[0]
+                except Exception:
+                    pass
+                
+                alliance_options.append((alliance_id, alliance_name, channel_id))
+            
+            # Create selection embed
+            embed = discord.Embed(
+                title="🛑 Stop Alliance Monitoring",
+                description="Select which alliance to stop monitoring:",
+                color=discord.Color.red()
+            )
+            
+            # Create select menu
+            options = []
+            for alliance_id, name, channel_id in alliance_options[:25]:
+                options.append(
+                    discord.SelectOption(
+                        label=name[:100],
+                        value=str(alliance_id),
+                        description=f"ID: {alliance_id} | Channel: {channel_id}",
+                        emoji="🏰"
+                    )
+                )
+            
+            select = discord.ui.Select(
+                placeholder="🏰 Choose an alliance to stop monitoring...",
+                options=options
+            )
+            
+            async def select_callback(select_interaction: discord.Interaction):
+                alliance_id = int(select.values[0])
+                
+                # Get alliance name
+                alliance_name = "Unknown"
+                for aid, name, _ in alliance_options:
+                    if aid == alliance_id:
+                        alliance_name = name
+                        break
+                
+                # Disable monitoring
+                try:
+                    with get_db_connection('settings.sqlite') as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            UPDATE alliance_monitoring 
+                            SET enabled = 0, updated_at = CURRENT_TIMESTAMP
+                            WHERE guild_id = ? AND alliance_id = ?
+                        """, (interaction.guild_id, alliance_id))
+                        conn.commit()
+                    
+                    success_embed = discord.Embed(
+                        title="✅ Monitoring Stopped",
+                        description=(
+                            f"**Alliance:** {alliance_name}\n"
+                            f"**Alliance ID:** {alliance_id}\n\n"
+                            f"Monitoring has been disabled for this alliance.\n"
+                            f"Historical data has been preserved."
+                        ),
+                        color=discord.Color.green()
+                    )
+                    
+                    self._set_embed_footer(success_embed)
+                    
+                    await select_interaction.response.edit_message(
+                        embed=success_embed,
+                        view=None
+                    )
+                    
+                    self.log_message(f"Monitoring disabled for alliance {alliance_id} ({alliance_name})")
+                    
+                except Exception as e:
+                    self.log_message(f"Error stopping monitoring: {e}")
+                    await select_interaction.response.edit_message(
+                        content="❌ Error stopping monitoring.",
+                        embed=None,
+                        view=None
+                    )
+            
+            select.callback = select_callback
+            view = discord.ui.View()
+            view.add_item(select)
+            
+            await interaction.followup.send(
+                embed=embed,
+                view=view,
+                ephemeral=True
+            )
+            
+        except Exception as e:
+            self.log_message(f"Error in stop_monitoring: {e}")
+            await interaction.followup.send(
+                "❌ An error occurred while stopping monitoring.",
                 ephemeral=True
             )
 

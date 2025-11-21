@@ -13,7 +13,7 @@ from .login_handler import LoginHandler
 # Import shared utilities
 try:
     from db_utils import get_db_connection
-    from admin_utils import is_admin, is_global_admin, get_admin
+    from admin_utils import is_admin, is_global_admin, get_admin, upsert_admin
 except ImportError:
     # Fallback if utilities are not available
     from pathlib import Path
@@ -119,6 +119,13 @@ class AllianceMemberOperations(commands.Cog):
             75: "FC 9", 76: "FC 9 - 1", 77: "FC 9 - 2", 78: "FC 9 - 3", 79: "FC 9 - 4",
             80: "FC 10", 81: "FC 10 - 1", 82: "FC 10 - 2", 83: "FC 10 - 3", 84: "FC 10 - 4"
         }
+        self.log_directory = 'log'
+        if not os.path.exists(self.log_directory):
+            os.makedirs(self.log_directory)
+        self.log_file = os.path.join(self.log_directory, 'alliance_memberlog.txt')
+        
+        # Initialize login handler for centralized API management
+        self.login_handler = LoginHandler()
 
         self.fl_emojis = {
             range(35, 40): "<:fc1:1326751863764156528>",
@@ -156,14 +163,18 @@ class AllianceMemberOperations(commands.Cog):
 
     # --- Storage abstraction helpers (Mongo when enabled, fallback to SQLite) ---
     def _count_members(self, alliance_id: int) -> int:
+        count = 0
         try:
             if mongo_enabled() and AllianceMembersAdapter is not None:
                 docs = AllianceMembersAdapter.get_all_members() or []
-                return sum(1 for d in docs if int(d.get('alliance') or d.get('alliance_id') or 0) == int(alliance_id))
+                count = sum(1 for d in docs if int(d.get('alliance') or d.get('alliance_id') or 0) == int(alliance_id))
+                # Only return MongoDB result if it found members
+                if count > 0:
+                    return count
         except Exception:
             pass
 
-        # Fallback to SQLite
+        # Fallback to SQLite (always try if MongoDB returned 0 or failed)
         try:
             with get_db_connection('users.sqlite') as users_db:
                 cursor = users_db.cursor()
@@ -174,6 +185,7 @@ class AllianceMemberOperations(commands.Cog):
 
     def _get_members_by_alliance(self, alliance_id: int) -> list:
         """Return list of tuples (fid, nickname, furnace_lv) for given alliance."""
+        members = []
         try:
             if mongo_enabled() and AllianceMembersAdapter is not None:
                 docs = AllianceMembersAdapter.get_all_members() or []
@@ -190,11 +202,13 @@ class AllianceMemberOperations(commands.Cog):
                         continue
                 # Order by furnace_lv desc, nickname
                 res.sort(key=lambda x: (-x[2], x[1] or ''))
-                return res
+                # Only return MongoDB result if it found members
+                if res:
+                    return res
         except Exception:
             pass
 
-        # SQLite fallback
+        # SQLite fallback (always try if MongoDB returned empty or failed)
         try:
             with get_db_connection('users.sqlite') as users_db:
                 cursor = users_db.cursor()

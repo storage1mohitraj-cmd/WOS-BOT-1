@@ -1772,15 +1772,20 @@ async def on_ready():
             import traceback
             logger.error(traceback.format_exc())
                 
-        # If a GUILD_ID is provided, do guild-specific sync for faster testing
-        if os.getenv('GUILD_ID'):
-            guild_id = int(os.getenv('GUILD_ID'))
+        # If a GUILD_ID or DEV_GUILD_ID is provided, do guild-specific sync for faster testing
+        guild_id_str = os.getenv('GUILD_ID') or os.getenv('DEV_GUILD_ID')
+        if guild_id_str:
+            guild_id = int(guild_id_str)
+            logger.info(f"Attempting to sync commands to specific guild ID: {guild_id}")
             guild = discord.Object(id=guild_id)
             try:
+                # Log registered commands before sync
+                logger.info(f"Commands registered in tree before sync: {[c.name for c in bot.tree.get_commands()]}")
+                
                 bot.tree.copy_global_to(guild=guild)
                 # Force sync commands to guild immediately
-                await bot.tree.sync(guild=guild)
-                logger.info(f'Synced commands to guild {guild_id}')
+                synced = await bot.tree.sync(guild=guild)
+                logger.info(f'Synced {len(synced)} commands to guild {guild_id}: {[c.name for c in synced]}')
             except discord.Forbidden:
                 # Bot isn't present in the guild or lacks access — fall back to global sync
                 logger.warning(f"Missing access to guild {guild_id} when attempting guild sync. Falling back to global sync.")
@@ -1792,8 +1797,8 @@ async def on_ready():
                 logger.info('Synced commands globally (fallback)')
         else:
             # Global sync for production
-            await bot.tree.sync()
-            logger.info('Synced commands globally')
+            synced = await bot.tree.sync()
+            logger.info(f'Synced {len(synced)} commands globally: {[c.name for c in synced]}')
 
             # Hide music-related slash commands while music is under maintenance.
             # This removes the app commands from the global tree so they don't appear to users.
