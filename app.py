@@ -120,7 +120,7 @@ from api_manager import make_request, manager, make_image_request
 from angel_personality import get_system_prompt, angel_personality
 from user_mapping import get_known_user_name
 from gift_codes import get_active_gift_codes
-from reminder_system import ReminderSystem, set_user_timezone, get_user_timezone, TimeParser, REMINDER_IMAGES
+from cogs.reminder_system import ReminderSystem, set_user_timezone, get_user_timezone, TimeParser, REMINDER_IMAGES
 from event_tips import EVENT_TIPS, get_event_info
 from thinking_animation import ThinkingAnimation
 from command_animator import animator
@@ -3256,10 +3256,16 @@ async def time_autocomplete(interaction: discord.Interaction, current: str):
         ("2025-11-05 18:00", "Exact date/time (YYYY-MM-DD HH:MM)"),
         ("next monday 10am", "Next Monday at 10:00 AM"),
 
+        # SPECIFIC DATES
+        ("on 25th November 2025 at 3pm", "Specific date: Nov 25, 2025 at 3:00 PM"),
+        ("on Nov 25 at 15:30", "Specific date: Nov 25 at 15:30"),
+        ("on December 1st at 9am IST", "Specific date: Dec 1 at 9:00 AM (IST)"),
+
         # RECURRING
         ("daily at 9am IST", "Recurring: daily at 9:00 AM (IST)"),
         ("daily at 21:30", "Recurring: daily at 21:30"),
         ("every 2 days at 8pm", "Recurring: every 2 days at 8:00 PM"),
+        ("every 3 days at 10am", "Recurring: every 3 days at 10:00 AM"),
         ("alternate days at 10am", "Recurring: alternate days at 10:00 AM"),
         ("weekly at 15:30", "Recurring: weekly at 15:30"),
         ("every week at 9am EST", "Recurring: weekly at 9:00 AM (EST)"),
@@ -3278,6 +3284,15 @@ async def time_autocomplete(interaction: discord.Interaction, current: str):
     if q.startswith("t"):
         choices.append(app_commands.Choice(name="today 6pm — Today at 6:00 PM", value="today 6pm"))
         choices.append(app_commands.Choice(name="tomorrow 9am — Tomorrow at 9:00 AM", value="tomorrow 9am"))
+    
+    # specific date quick starts
+    if q.startswith("on"):
+        from datetime import datetime
+        # Suggest a date a week from now
+        future_date = datetime.now() + timedelta(days=7)
+        date_str = future_date.strftime("%B %d")
+        choices.append(app_commands.Choice(name=f"on {date_str} at 3pm — Specific date", value=f"on {date_str} at 3pm"))
+        choices.append(app_commands.Choice(name="on December 25 at 9am — Christmas example", value="on December 25 at 9am"))
 
     # date-like heuristics
     if q and any(c.isdigit() for c in q) and ('-' in q or '/' in q or ':' in q):
@@ -3497,24 +3512,24 @@ async def storage_status(interaction: discord.Interaction):
 @bot.tree.command(name="reminder", description="Set a reminder with time and message")
 @app_commands.describe(
     time="When to remind you (e.g., '5 minutes', 'tomorrow 3pm IST', 'daily at 9am')",
-    message="What to remind you about",
+    message="Title/header for the reminder",
+    body="Optional detailed message body for the reminder",
     channel="Channel to send reminder in (optional, defaults to current channel)",
     image_preset="Optional preset image to use in the reminder embed",
     image_url="Optional direct image URL to use in the reminder embed (overrides preset)",
     thumbnail_url="Optional image URL to use as embed.thumbnail (overrides preset)",
-    author_name="Optional author header text for the embed",
-    author_icon_url="Optional URL for the author icon",
     footer_text="Optional footer text for the embed",
-    footer_icon_url="Optional footer icon URL for the embed"
+    footer_icon_url="Optional footer icon URL for the embed",
+    author_url="Optional URL to link the author name to"
 )
 @app_commands.autocomplete(time=time_autocomplete)
 @app_commands.choices(
     image_preset=[app_commands.Choice(name=k, value=k) for k in REMINDER_IMAGES.keys()]
 )
-async def reminder(interaction: discord.Interaction, time: str, message: str, channel: Optional[discord.TextChannel] = None,
+async def reminder(interaction: discord.Interaction, time: str, message: str, body: str = None, 
+                   channel: Optional[discord.TextChannel] = None,
                    image_preset: str = None, image_url: str = None, thumbnail_url: str = None,
-                   author_name: str = None, author_icon_url: str = None, footer_text: str = None,
-                   footer_icon_url: str = None):
+                   footer_text: str = None, footer_icon_url: str = None, author_url: str = None):
     # Defer only if the interaction hasn't already been acknowledged. Defer can raise
     # NotFound/HTTPException if the interaction is invalid or already responded to, so
     # catch and continue gracefully.
@@ -3546,15 +3561,15 @@ async def reminder(interaction: discord.Interaction, time: str, message: str, ch
         except Exception:
             chosen_image = None
 
-        # Create the reminder (explicit thumbnail/url/author/footer options are forwarded)
+        # Create the reminder (explicit thumbnail/url/footer options are forwarded)
         reminder_id = await reminder_system.create_reminder(
             interaction, time, message, target_channel,
+            body=body,
             image_url=chosen_image,
             thumbnail_url=thumbnail_url,
-            author_name=author_name,
-            author_icon_url=author_icon_url,
             footer_text=footer_text,
-            footer_icon_url=footer_icon_url
+            footer_icon_url=footer_icon_url,
+            author_url=author_url
         )
 
         # If creation failed, reminder_id will be False/None

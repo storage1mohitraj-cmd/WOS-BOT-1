@@ -127,18 +127,8 @@ class AllianceMemberOperations(commands.Cog):
         # Initialize login handler for centralized API management
         self.login_handler = LoginHandler()
 
-        self.fl_emojis = {
-            range(35, 40): "<:fc1:1326751863764156528>",
-            range(40, 45): "<:fc2:1326751886954594315>",
-            range(45, 50): "<:fc3:1326751903912034375>",
-            range(50, 55): "<:fc4:1326751938674692106>",
-            range(55, 60): "<:fc5:1326751952750776331>",
-            range(60, 65): "<:fc6:1326751966184869981>",
-            range(65, 70): "<:fc7:1326751983939489812>",
-            range(70, 75): "<:fc8:1326751996707082240>",
-            range(75, 80): "<:fc9:1326752008505528331>",
-            range(80, 85): "<:fc10:1326752023001174066>"
-        }
+        # Furnace level emojis - REMOVED as per request
+        # self.fl_emojis = { ... }
 
         self.log_directory = 'log'
         if not os.path.exists(self.log_directory):
@@ -156,10 +146,8 @@ class AllianceMemberOperations(commands.Cog):
             f.write(log_entry)
 
     def get_fl_emoji(self, fl_level: int) -> str:
-        for level_range, emoji in self.fl_emojis.items():
-            if fl_level in level_range:
-                return emoji
-        return "🔥"
+        # Removed custom emojis as per request
+        return ""
 
     # --- Storage abstraction helpers (Mongo when enabled, fallback to SQLite) ---
     def _count_members(self, alliance_id: int) -> int:

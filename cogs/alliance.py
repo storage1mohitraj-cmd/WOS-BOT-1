@@ -89,18 +89,8 @@ class Alliance(commands.Cog):
         }
         
         # Furnace level emojis
-        self.fl_emojis = {
-            range(35, 40): "<:fc1:1326751863764156528>",
-            range(40, 45): "<:fc2:1326751886954594315>",
-            range(45, 50): "<:fc3:1326751903912034375>",
-            range(50, 55): "<:fc4:1326751938674692106>",
-            range(55, 60): "<:fc5:1326751952750776331>",
-            range(60, 65): "<:fc6:1326751966184869981>",
-            range(65, 70): "<:fc7:1326751983939489812>",
-            range(70, 75): "<:fc8:1326751996707082240>",
-            range(75, 80): "<:fc9:1326752008505528331>",
-            range(80, 85): "<:fc10:1326752023001174066>"
-        }
+        # Furnace level emojis - REMOVED as per request
+        # self.fl_emojis = { ... }
         
         # Logging
         self.log_directory = 'log'
@@ -1822,10 +1812,8 @@ class Alliance(commands.Cog):
     
     def get_fl_emoji(self, fl_level: int) -> str:
         """Get emoji for furnace level"""
-        for level_range, emoji in self.fl_emojis.items():
-            if fl_level in level_range:
-                return emoji
-        return "🔥"
+        # Removed custom emojis as per request
+        return ""
     
     def _get_monitoring_members(self, alliance_id: int) -> list:
         """Get all members of an alliance from database"""
@@ -2077,7 +2065,7 @@ class Alliance(commands.Cog):
             furnace_level_str = self.level_mapping.get(change['furnace_lv'], str(change['furnace_lv']))
             fl_emoji = self.get_fl_emoji(change['furnace_lv'])
             
-            embed.add_field(name="🆔 Player ID", value=f"`{change['fid']}`", inline=False)
+            embed.add_field(name="Player 🆔 ", value=f"`{change['fid']}`", inline=False)
             embed.add_field(name="📝 Old Name", value=f"~~`{change['old_value']}`~~", inline=True)
             embed.add_field(name="✨ New Name", value=f"**`{change['new_value']}`**", inline=True)
             embed.add_field(name="⚔️ Furnace Level", value=f"{fl_emoji} `{furnace_level_str}`", inline=False)
@@ -2097,11 +2085,11 @@ class Alliance(commands.Cog):
             fl_emoji = self.get_fl_emoji(change['furnace_lv'])
             
             embed.add_field(name="🆔 Player ID", value=f"`{change['fid']}`", inline=False)
-            embed.add_field(name="👤 Player", value=f"`{change['nickname']}`", inline=False)
+            embed.add_field(name="👤 Player Name", value=f"`{change['nickname']}`", inline=False)
             embed.add_field(name="⚔️ Furnace Level", value=f"{fl_emoji} `{furnace_level_str}`", inline=False)
             embed.add_field(name="🏰 Alliance", value=f"`{change['alliance_name']}`", inline=True)
             embed.add_field(name="🕐 Time", value=f"`{timestamp}`", inline=True)
-            embed.add_field(name="Old Profile ↗️", value="*(See Thumbnail)*", inline=True)
+            embed.add_field(name="Previous Profile ↗️", value="*(See Thumbnail)*", inline=True)
             
             embed.add_field(name="New Profile ⬇️", value="*(See Image Below)*", inline=False)
             
@@ -2128,9 +2116,9 @@ class Alliance(commands.Cog):
             old_emoji = self.get_fl_emoji(change['old_value'])
             new_emoji = self.get_fl_emoji(change['new_value'])
             
-            embed.add_field(name="🆔 Player ID", value=f"`{change['fid']}`", inline=False)
-            embed.add_field(name="👤 Player", value=f"`{change['nickname']}`", inline=False)
-            embed.add_field(name="📊 Old Level", value=f"{old_emoji} `{old_level_str}`", inline=True)
+            embed.add_field(name="Player 🆔", value=f"`{change['fid']}`", inline=False)
+            embed.add_field(name="👤 Player Name", value=f"`{change['nickname']}`", inline=False)
+            embed.add_field(name="📊 Previous Level", value=f"{old_emoji} `{old_level_str}`", inline=True)
             embed.add_field(name="🎉 New Level", value=f"{new_emoji} `{new_level_str}`", inline=True)
             embed.add_field(name="🏰 Alliance", value=f"`{change['alliance_name']}`", inline=True)
             embed.add_field(name="🕐 Time", value=f"`{timestamp}`", inline=True)

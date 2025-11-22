@@ -159,6 +159,7 @@ class ReminderStorage:
                         channel_id TEXT NOT NULL,
                         guild_id TEXT,
                         message TEXT NOT NULL,
+                        body TEXT DEFAULT NULL,
                         reminder_time TEXT NOT NULL,
                         created_at TEXT NOT NULL,
                         is_active INTEGER DEFAULT 1,
@@ -170,8 +171,6 @@ class ReminderStorage:
                         mention TEXT DEFAULT 'everyone',
                         image_url TEXT DEFAULT NULL,
                         thumbnail_url TEXT DEFAULT NULL,
-                        author_name TEXT DEFAULT NULL,
-                        author_icon_url TEXT DEFAULT NULL,
                         footer_text TEXT DEFAULT NULL,
                         footer_icon_url TEXT DEFAULT NULL
                     )
@@ -214,14 +213,9 @@ class ReminderStorage:
                     pass
 
                 try:
-                    cursor.execute("ALTER TABLE reminders ADD COLUMN author_name TEXT DEFAULT NULL")
+                    cursor.execute("ALTER TABLE reminders ADD COLUMN body TEXT DEFAULT NULL")
                 except sqlite3.OperationalError:
-                    pass
-
-                try:
-                    cursor.execute("ALTER TABLE reminders ADD COLUMN author_icon_url TEXT DEFAULT NULL")
-                except sqlite3.OperationalError:
-                    pass
+                    pass  # Column already exists
 
                 try:
                     cursor.execute("ALTER TABLE reminders ADD COLUMN footer_text TEXT DEFAULT NULL")
@@ -230,6 +224,11 @@ class ReminderStorage:
 
                 try:
                     cursor.execute("ALTER TABLE reminders ADD COLUMN footer_icon_url TEXT DEFAULT NULL")
+                except sqlite3.OperationalError:
+                    pass
+
+                try:
+                    cursor.execute("ALTER TABLE reminders ADD COLUMN author_url TEXT DEFAULT NULL")
                 except sqlite3.OperationalError:
                     pass
 
@@ -252,10 +251,9 @@ class ReminderStorage:
             logger.error(f"❌ Failed to initialize reminder database: {e}")
     
     def add_reminder(self, user_id: str, channel_id: str, guild_id: str, message: str, reminder_time: datetime,
-                    is_recurring: bool = False, recurrence_type: str = None, recurrence_interval: int = None,
+                    body: str = None, is_recurring: bool = False, recurrence_type: str = None, recurrence_interval: int = None,
                     original_pattern: str = None, mention: str = 'everyone', image_url: str = None,
-                    thumbnail_url: str = None, author_name: str = None, author_icon_url: str = None,
-                    footer_text: str = None, footer_icon_url: str = None) -> int:
+                    thumbnail_url: str = None, footer_text: str = None, footer_icon_url: str = None, author_url: str = None) -> int:
         """Add a new reminder to the database with optional recurring support"""
         # If MongoDB is configured for this process, block writes to the SQLite DB to
         # avoid accidental writes. The bot should be restarted with MONGO_URI set so
@@ -305,15 +303,16 @@ class ReminderStorage:
 
                 # No duplicate found — insert normally
                 cursor.execute('''
-                    INSERT INTO reminders (user_id, channel_id, guild_id, message, reminder_time, created_at,
+                    INSERT INTO reminders (user_id, channel_id, guild_id, message, body, reminder_time, created_at,
                                          is_recurring, recurrence_type, recurrence_interval, original_time_pattern, mention, image_url,
-                                         thumbnail_url, author_name, author_icon_url, footer_text, footer_icon_url)
+                                         thumbnail_url, footer_text, footer_icon_url, author_url)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     user_id,
                     channel_id,
                     guild_id,
                     message,
+                    body,
                     reminder_time.isoformat(),
                     get_accurate_utc_time().isoformat(),
                     1 if is_recurring else 0,
@@ -323,10 +322,9 @@ class ReminderStorage:
                     mention,
                     image_url,
                     thumbnail_url,
-                    author_name,
-                    author_icon_url,
                     footer_text,
-                    footer_icon_url
+                    footer_icon_url,
+                    author_url
                 ))
                 reminder_id = cursor.lastrowid
                 conn.commit()
@@ -395,7 +393,7 @@ class ReminderStorage:
         """
         if not fields:
             return False
-        allowed = {'image_url', 'thumbnail_url', 'author_name', 'author_icon_url', 'footer_text', 'footer_icon_url', 'mention', 'reminder_time'}
+        allowed = {'image_url', 'thumbnail_url', 'body', 'footer_text', 'footer_icon_url', 'mention', 'reminder_time'}
         to_update = {k: v for k, v in fields.items() if k in allowed}
         if not to_update:
             return False
@@ -820,7 +818,57 @@ class TimeParser:
                 converted_time = TimeParser.convert_to_timezone(result_time, timezone_abbr)
                 return converted_time, recurring_info
 
-        # 5. ABSOLUTE DATETIME formats
+        # 5. SPECIFIC DATE patterns: "on 25th November 2025 at 3pm", "on Nov 25 at 15:30"
+        # Match patterns like: "on [date] at [time]"
+        on_date_match = re.match(r'on\s+(.+?)\s+at\s+([0-9]{1,2}):?([0-9]{2})?\s*(am|pm)?', time_str)
+        if on_date_match:
+            date_part = on_date_match.group(1).strip()
+            hour = int(on_date_match.group(2))
+            minute = int(on_date_match.group(3)) if on_date_match.group(3) else 0
+            period = on_date_match.group(4)
+            
+            if period == 'pm' and hour != 12:
+                hour += 12
+            elif period == 'am' and hour == 12:
+                hour = 0
+            
+            # Try to parse the date part
+            # Remove ordinal suffixes (1st, 2nd, 3rd, 4th, etc.)
+            date_clean = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', date_part)
+            
+            # Try various date formats
+            date_formats = [
+                "%d %B %Y",      # 25 November 2025
+                "%d %b %Y",      # 25 Nov 2025
+                "%B %d %Y",      # November 25 2025
+                "%b %d %Y",      # Nov 25 2025
+                "%d %B",         # 25 November (current year)
+                "%d %b",         # 25 Nov (current year)
+                "%B %d",         # November 25 (current year)
+                "%b %d",         # Nov 25 (current year)
+                "%Y-%m-%d",      # 2025-11-25
+                "%m/%d/%Y",      # 11/25/2025
+                "%d/%m/%Y",      # 25/11/2025
+            ]
+            
+            parsed_date = None
+            for fmt in date_formats:
+                try:
+                    parsed_date = datetime.strptime(date_clean, fmt)
+                    # If no year specified, use current year
+                    if parsed_date.year == 1900:
+                        parsed_date = parsed_date.replace(year=now.year)
+                    break
+                except ValueError:
+                    continue
+            
+            if parsed_date:
+                # Combine date and time
+                target_time = parsed_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                converted_time = TimeParser.convert_to_timezone(target_time, timezone_abbr)
+                return converted_time, recurring_info
+
+        # 6. ABSOLUTE DATETIME formats
         try:
             # Try ISO format first
             result_time = datetime.fromisoformat(time_str)
@@ -835,6 +883,12 @@ class TimeParser:
             "%Y-%m-%d %I:%M %p",
             "%m/%d/%Y %H:%M",
             "%m/%d/%Y %I:%M %p",
+            "%d/%m/%Y %H:%M",
+            "%d/%m/%Y %I:%M %p",
+            "%B %d %Y %H:%M",
+            "%B %d %Y %I:%M %p",
+            "%b %d %Y %H:%M",
+            "%b %d %Y %I:%M %p",
             "%B %d %H:%M",
             "%B %d %I:%M %p",
             "%b %d %H:%M",
@@ -973,17 +1027,16 @@ class ReminderSystem:
                         logger.debug(f"Skipping reminder {reminder.get('id')} because it was already claimed")
                         continue
 
-                    # Create reminder alert embed with message (no default title)
+                    # Create reminder alert embed with message as title and body as description
                     embed = discord.Embed(
-                        description=f"{reminder['message']}",
+                        title=f"{reminder['message']}",
+                        description=reminder.get('body'),
                         color=0xb4a7d6
                     )
-                    # Use stored image/thumbnail/author/footer on the reminder if present
+                    # Use stored image/thumbnail/footer on the reminder if present
                     try:
                         thumb = reminder.get('thumbnail_url')
                         img = reminder.get('image_url')
-                        author_n = reminder.get('author_name')
-                        author_icon = reminder.get('author_icon_url')
                         footer_t = reminder.get('footer_text')
                         footer_icon = reminder.get('footer_icon_url')
 
@@ -999,19 +1052,28 @@ class ReminderSystem:
                             except Exception:
                                 pass
 
-                        if author_n or author_icon:
-                            try:
-                                embed.set_author(name=author_n or user_mention, icon_url=author_icon)
-                            except Exception:
-                                pass
-
                         if footer_t or footer_icon:
                             try:
                                 embed.set_footer(text=footer_t or '', icon_url=footer_icon)
                             except Exception:
                                 pass
+                        pass
+
+                        # Set author if author_url is present
+                        if reminder.get('author_url'):
+                             # We use the user's display name if we can fetch it, otherwise generic
+                            author_name = "Reminder Author"
+                            author_icon = None
+                            if user:
+                                author_name = user.display_name
+                                try:
+                                    author_icon = user.display_avatar.url
+                                except:
+                                    pass
+                            embed.set_author(name=author_name, url=reminder.get('author_url'), icon_url=author_icon)
+
                     except Exception:
-                        # Best-effort: ignore image/author/footer errors and continue
+                        # Best-effort: ignore image/footer errors and continue
                         pass
                     
                     # Send the reminder with appropriate mention based on stored setting
@@ -1097,10 +1159,13 @@ class ReminderSystem:
         logger.info("🔄 Reminder checker started")
     
     async def create_reminder(self, interaction: discord.Interaction, time_str: str, message: str, target_channel: discord.TextChannel,
-                              mention: str = 'everyone', image_url: str = None, thumbnail_url: str = None,
-                              author_name: str = None, author_icon_url: str = None,
-                              footer_text: str = None, footer_icon_url: str = None) -> bool:
+                              body: str = None, mention: str = 'everyone', image_url: str = None, thumbnail_url: str = None,
+                              footer_text: str = None, footer_icon_url: str = None, author_url: str = None) -> bool:
         """Create a new reminder with timezone and channel support
+        
+        Args:
+            message: Title/header for the reminder embed
+            body: Optional detailed description for the reminder
         
         Note: This method expects the interaction to already be deferred.
         """
@@ -1121,19 +1186,24 @@ class ReminderSystem:
             
             try:
                 await interaction.followup.send(
-                    "❌ **Invalid Time Format or Time Has Passed**\n\n"
-                    f"🕰️ **Current time ({detected_tz.upper()}):** {current_local.strftime('%I:%M %p')}\n\n"
+                    "❌ **Invalid Time Format or Time Has Passed**\\n\\n"
+                    f"🕰️ **Current time ({detected_tz.upper()}):** {current_local.strftime('%I:%M %p')}\\n\\n"
                     "I couldn't understand that time format, or the time has already passed today. "
-                    "Please try one of these:\n\n"
-                    "**SIMPLE TIMES:**\n"
-                    "• `5 minutes`, `2 hours`, `1 day`\n"
-                    "• `today at 8:50 pm`, `today at 20:30`\n"
-                    "• `tomorrow 3pm IST`, `tomorrow at 15:30 UTC`\n\n"
-                    "**RECURRING:**\n"
-                    "• `daily at 9am IST`, `daily at 21:30`\n"
-                    "• `every 2 days at 8pm`, `alternate days at 10am`\n"
-                    "• `weekly at 15:30`, `every week at 9am EST`\n\n"
-                    "**Supported Timezones:** UTC, GMT, EST, CST, MST, PST, IST, CET, CEST, JST, AEST, BST\n\n"
+                    "Please try one of these:\\n\\n"
+                    "**SIMPLE TIMES:**\\n"
+                    "• `5 minutes`, `2 hours`, `1 day`\\n"
+                    "• `today at 8:50 pm`, `today at 20:30`\\n"
+                    "• `tomorrow 3pm IST`, `tomorrow at 15:30 UTC`\\n\\n"
+                    "**SPECIFIC DATES:**\\n"
+                    "• `on 25th November 2025 at 3pm`\\n"
+                    "• `on Nov 25 at 15:30 IST`\\n"
+                    "• `on December 1st at 9am`\\n\\n"
+                    "**RECURRING:**\\n"
+                    "• `daily at 9am IST`, `daily at 21:30`\\n"
+                    "• `every 2 days at 8pm`, `every 3 days at 10am`\\n"
+                    "• `alternate days at 10am`\\n"
+                    "• `weekly at 15:30`, `every week at 9am EST`\\n\\n"
+                    "**Supported Timezones:** UTC, GMT, EST, CST, MST, PST, IST, CET, CEST, JST, AEST, BST\\n\\n"
                     "💡 **Tip:** For 'today at' reminders, make sure the time hasn't passed in the specified timezone!",
                     ephemeral=True
                 )
@@ -1175,6 +1245,7 @@ class ReminderSystem:
             channel_id=str(target_channel.id),
             guild_id=str(interaction.guild.id) if interaction.guild else None,
             message=message,
+            body=body,
             reminder_time=reminder_time,
             is_recurring=recurring_info.get('is_recurring', False),
             recurrence_type=recurring_info.get('type'),
@@ -1183,10 +1254,9 @@ class ReminderSystem:
             mention=mention,
             image_url=image_url,
             thumbnail_url=thumbnail_url,
-            author_name=author_name,
-            author_icon_url=author_icon_url,
             footer_text=footer_text,
-            footer_icon_url=footer_icon_url
+            footer_icon_url=footer_icon_url,
+            author_url=author_url
         )
         
         if reminder_id == -1:
@@ -1224,20 +1294,25 @@ class ReminderSystem:
         # Success response with channel information and recurring info
         time_until = TimeParser.format_time_until(reminder_time)
         
-        title = "✅ Reminder Set Successfully!"
+        # Build description from body if provided
+        description_parts = []
+        if body:
+            description_parts.append(body)
+        
+        # Add recurring info to description if applicable
         if recurring_info.get('is_recurring'):
             recurrence_type = recurring_info.get('type', 'daily')
             interval = recurring_info.get('interval', 1)
             if recurrence_type == 'daily' and interval == 1:
-                title = "✅ Daily Reminder Set!"
+                description_parts.append("🔁 **Repeats:** Daily")
             elif recurrence_type == 'days':
-                title = f"✅ Recurring Reminder Set (Every {interval} days)!"
+                description_parts.append(f"🔁 **Repeats:** Every {interval} days")
             elif recurrence_type == 'weekly':
-                title = "✅ Weekly Reminder Set!"
+                description_parts.append("🔁 **Repeats:** Weekly")
         
         embed = discord.Embed(
-            title=title,
-            description=f"I'll remind you about: **{message}**",
+            title=f"{message}",
+            description="\n\n".join(description_parts) if description_parts else None,
             color=0x00FF7F
         )
         # Use provided thumbnail if supplied, otherwise fall back to set image
@@ -1248,6 +1323,13 @@ class ReminderSystem:
                 embed.set_thumbnail(url=image_url or REMINDER_IMAGES.get('set'))
         except Exception:
             pass
+
+        # Set author if author_url is provided
+        if author_url:
+            try:
+                embed.set_author(name=interaction.user.display_name, url=author_url, icon_url=interaction.user.display_avatar.url)
+            except Exception:
+                pass
 
         # Display scheduled time according to user's timezone preference (if set).
         try:
@@ -1297,41 +1379,13 @@ class ReminderSystem:
         embed.add_field(
             name="📺 Channel",
             value=(target_channel.mention if target_channel else "(unknown channel)"),
-            inline=True
         )
-        
-        # Add recurring information if applicable
-        if recurring_info.get('is_recurring'):
-            recurrence_type = recurring_info.get('type', 'daily')
-            interval = recurring_info.get('interval', 1)
-            
-            if recurrence_type == 'daily' and interval == 1:
-                recurrence_text = "Daily"
-            elif recurrence_type == 'days':
-                recurrence_text = f"Every {interval} days"
-            elif recurrence_type == 'weekly':
-                recurrence_text = "Weekly"
-            else:
-                recurrence_text = "Recurring"
-                
-            embed.add_field(
-                name="🔁 Recurrence",
-                value=recurrence_text,
-                inline=True
-            )
         
         embed.set_footer(text="💡 Use /reminderdashboard to manage your reminders")
         # If the user provided footer text/icon, override footer
         try:
             if footer_text or footer_icon_url:
                 embed.set_footer(text=footer_text or "💡 Use /reminderdashboard to manage your reminders", icon_url=footer_icon_url)
-        except Exception:
-            pass
-
-        # If author fields provided, set author
-        try:
-            if author_name or author_icon_url:
-                embed.set_author(name=author_name or interaction.user.display_name, icon_url=author_icon_url)
         except Exception:
             pass
 
